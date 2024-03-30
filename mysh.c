@@ -45,12 +45,12 @@
  *      - Using the `access()` function, you can determine whether the file exists
  */
 
-int handle_builtin() {
+int handle_builtin(command_t* command) {
     // @todo fill this in
     return EXIT_SUCCESS;
 }
 
-int handle_non_builtin() {
+int handle_non_builtin(command_t command) {
     // @todo fill this in
     return EXIT_FAILURE;
 }
@@ -83,8 +83,13 @@ int handle_wildcards(char** pathname) {
  */
 
 int main(int argc, char** argv) {
-    // @todo Differentiate between the two modes using isatty()
-
+    // @todo Differentiate between the two modes
+    command_t new_comm = malloc(sizeof(command_t));
+    if(argc == 1) {
+        // Interactive mode
+    } else {
+        // Batch mode -> Loop through and retrieve all
+    }
 
     // @todo parse through all the args in a command line and add them to the struct.
 }
