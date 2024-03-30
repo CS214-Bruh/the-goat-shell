@@ -70,6 +70,7 @@ int handle_non_builtin(command_t command) {
 */
 int handle_wildcards(char** pathname) {
     // @todo fill this in
+    return EXIT_SUCCESS;
 }
 
 /**
@@ -84,11 +85,27 @@ int handle_wildcards(char** pathname) {
 
 int main(int argc, char** argv) {
     // @todo Differentiate between the two modes
-    command_t new_comm = malloc(sizeof(command_t));
-    if(argc == 1) {
+//    command_t new_comm = malloc(sizeof(command_t));
+
+    // Check whether or not to use batch mode
+    bool use_batch = false;
+    if(argc > 1) {
+        for(int i = 1; i < argc; i++) {
+            int fd = open(argv[i], O_RDONLY);
+            if(!isatty(fd)) use_batch = true;
+        }
+    }
+    if(!use_batch) {
         // Interactive mode
+        bool keep_running = true;
+        while(keep_running) {
+            read(STDIN_FILENO, )
+            if()
+        }
+        if(DEBUG) printf("The input is associated with the terminal.\n");
     } else {
         // Batch mode -> Loop through and retrieve all
+        if(DEBUG) printf("Input is not associated with the terminal.\n");
     }
 
     // @todo parse through all the args in a command line and add them to the struct.

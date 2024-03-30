@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -Wall -fsanitize=address -std=c99
-# DEBUG = -DDEBUG
+DEBUG = -DDEBUG
 
 mysh: mysh.o
 	$(CC) $(CFLAGS) $(DEBUG) mysh.o -o mysh
