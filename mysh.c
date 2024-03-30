@@ -87,6 +87,8 @@ int main(int argc, char** argv) {
     // @todo Differentiate between the two modes
 //    command_t new_comm = malloc(sizeof(command_t));
 
+    // I dont know how big this buffer size should be.
+    char* buf[];
     // Check whether or not to use batch mode
     bool use_batch = false;
     if(argc > 1) {
