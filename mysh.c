@@ -9,7 +9,10 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <string.h>
 
+// DEFINITIONS
+#define BUFFER_SIZE 1024
 #ifndef DEBUG
 #define DEBUG 0
 #endif
@@ -87,22 +90,51 @@ int main(int argc, char** argv) {
     // @todo Differentiate between the two modes
 //    command_t new_comm = malloc(sizeof(command_t));
 
-    // I dont know how big this buffer size should be.
-    char* buf[];
     // Check whether or not to use batch mode
+    printf("Number of args: %d\n", argc);
     bool use_batch = false;
+
+    // If the arguments are greater than 1, check if any of it is terminal
     if(argc > 1) {
         for(int i = 1; i < argc; i++) {
             int fd = open(argv[i], O_RDONLY);
             if(!isatty(fd)) use_batch = true;
         }
     }
+
+    // If no specified input file
+    if(!isatty(STDIN_FILENO)) use_batch = true;
+
     if(!use_batch) {
         // Interactive mode
+        printf("Welcome to the shell! Running in interactive mode.\n");
+
         bool keep_running = true;
+        // I dont know how big this buffer size should be.
+        char buf[BUFFER_SIZE];
+        char c;
+        int rd;
         while(keep_running) {
-            read(STDIN_FILENO, )
-            if()
+            // Init messages
+            write(STDOUT_FILENO, "mysh> ", 6);
+
+            int len = 0;
+            while((rd = read(STDIN_FILENO, &c, sizeof(char))) >= 0) {
+                if(DEBUG) printf("%c Read: %i\n", c, rd);
+                buf[len] = c;
+                len++;
+
+                if(c == '\n') break;
+            }
+//            printf("Command is: %s\n", buf);
+            char comm[len];
+            write(STDOUT_FILENO, buf, len);
+            for(int i= 0; buf[i] != '\0'; i++) comm[i] = buf[i];
+            comm[len-1] = '\0';
+            if(strcmp(comm, "exit") == 0) {
+                write(STDOUT_FILENO, "Exit signal received... Goodbye!\n", 33);
+                keep_running = false;
+            }
         }
         if(DEBUG) printf("The input is associated with the terminal.\n");
     } else {
