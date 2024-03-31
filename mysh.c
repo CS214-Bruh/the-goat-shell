@@ -129,7 +129,7 @@ int main(int argc, char** argv) {
 //            printf("Command is: %s\n", buf);
             char comm[len];
             write(STDOUT_FILENO, buf, len);
-            for(int i= 0; buf[i] != '\0'; i++) comm[i] = buf[i];
+            for(int i= 0; buf[i] != '\n'; i++) comm[i] = buf[i];
             comm[len-1] = '\0';
             if(strcmp(comm, "exit") == 0) {
                 write(STDOUT_FILENO, "Exit signal received... Goodbye!\n", 33);
