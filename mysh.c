@@ -99,48 +99,75 @@ int main(int argc, char** argv) {
         for(int i = 1; i < argc; i++) {
             int fd = open(argv[i], O_RDONLY);
             if(!isatty(fd)) use_batch = true;
+            dup2(fd, STDIN_FILENO);
+            close(fd);
         }
     }
 
     // If no specified input file
     if(!isatty(STDIN_FILENO)) use_batch = true;
 
-    if(!use_batch) {
-        // Interactive mode
-        printf("Welcome to the shell! Running in interactive mode.\n");
+    // Interactive mode
+    if(!use_batch) printf("Welcome to the shell! Running in interactive mode.\n");
+    // Batch mode -> Loop through and retrieve all
+    if(use_batch) {
+        if(DEBUG) printf("Batch mode instead.\n");
+    }
 
-        bool keep_running = true;
-        // I dont know how big this buffer size should be.
-        char buf[BUFFER_SIZE];
-        char c;
-        int rd;
-        while(keep_running) {
-            // Init messages
-            write(STDOUT_FILENO, "mysh> ", 6);
 
-            int len = 0;
-            while((rd = read(STDIN_FILENO, &c, sizeof(char))) >= 0) {
-                if(DEBUG) printf("%c Read: %i\n", c, rd);
+    bool keep_running = true;
+    // I dont know how big this buffer size should be.
+    char buf[BUFFER_SIZE];
+    char c;
+    int rd, prev_exit_status;
+    while(keep_running) {
+        // Init messages
+        if(!use_batch) write(STDOUT_FILENO, "mysh> ", 6);
+
+        bool first_word = true;
+        int len = 0;
+        while((rd = read(STDIN_FILENO, &c, sizeof(char))) >= 0) {
+            if(rd < 0) perror("Read error.");
+            else {
+//                    if(DEBUG) printf("%c Read: %i\n", c, rd);
                 buf[len] = c;
-                len++;
+
+                if(first_word) len++;
+                if(c == ' ') first_word = false;
 
                 if(c == '\n') break;
             }
+        }
 //            printf("Command is: %s\n", buf);
-            char comm[len];
-            write(STDOUT_FILENO, buf, len);
-            for(int i= 0; buf[i] != '\n'; i++) comm[i] = buf[i];
-            comm[len-1] = '\0';
-            if(strcmp(comm, "exit") == 0) {
-                write(STDOUT_FILENO, "Exit signal received... Goodbye!\n", 33);
-                keep_running = false;
+        char comm[len];
+        for(int i= 0; buf[i] != '\n' && buf[i] != ' '; i++) {
+            comm[i] = buf[i];
+        }
+        comm[len-1] = '\0';
+//            write(STDOUT_FILENO, comm, len);
+        if(strcmp(comm, "exit") == 0) {
+            write(STDOUT_FILENO, "Exit signal received... Goodbye!\n", 33);
+            keep_running = false;
+        } else if(strcmp(comm, "then") == 0) {
+            // Received a "then" statement as the first token
+            // Check the exit status of the last command
+            if(DEBUG) printf("Then statement found!\n");
+            if(prev_exit_status == EXIT_SUCCESS) {
+                // Run code for exit success
+                // Need to get everything past the "then" statement
+                // That will be passed to the argument parser
+            }
+        } else if(strcmp(comm, "else") == 0) {
+            // received an else statement
+            if(DEBUG) printf("Else Statement found!\n");
+            if(prev_exit_status == EXIT_FAILURE) {
+                // Run code for exit failure
             }
         }
-        if(DEBUG) printf("The input is associated with the terminal.\n");
-    } else {
-        // Batch mode -> Loop through and retrieve all
-        if(DEBUG) printf("Input is not associated with the terminal.\n");
+
     }
+
+
 
     // @todo parse through all the args in a command line and add them to the struct.
 }
