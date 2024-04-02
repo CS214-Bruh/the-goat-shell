@@ -122,10 +122,11 @@ int main(int argc, char** argv) {
 
     bool keep_running = true;
     // I dont know how big this buffer size should be.
-    char buf[BUFFER_SIZE];
     char c;
     int rd, prev_exit_status;
     while(keep_running) {
+        char* buf = calloc(1024, sizeof(char));
+
         // Init messages
         if(!use_batch) write(STDOUT_FILENO, "mysh> ", 6);
 
@@ -167,6 +168,7 @@ int main(int argc, char** argv) {
             // Received a "then" statement as the first token
             // Check the exit status of the last command
             if(DEBUG) printf("Then statement found!\n");
+            if(DEBUG) printf("%s \n", buf+len+1);
             if(prev_exit_status == EXIT_SUCCESS) {
                 // Run code for exit success
                 // Need to get everything past the "then" statement
@@ -175,10 +177,14 @@ int main(int argc, char** argv) {
         } else if(strcmp(comm, "else") == 0) {
             // received an else statement
             if(DEBUG) printf("Else Statement found!\n");
+            if(DEBUG) printf("%s \n", buf+len+1);
             if(prev_exit_status == EXIT_FAILURE) {
                 // Run code for exit failure
             }
+        } else {
+            write(STDOUT_FILENO, buf, total_length);
         }
+        free(buf);
     }
 
 
