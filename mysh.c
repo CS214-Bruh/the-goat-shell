@@ -128,6 +128,18 @@ int handle_wildcards(char** pathname) {
                 write(comm->output_file, path, strlen(path));
             }
         }
+    } else {
+        // This is for everything else...
+        pid_t pid = fork();
+        if(pid == -1) {
+            perror("Error when forking process.\n");
+            return EXIT_FAILURE;
+        } else if (pid == 0) {
+            // In the new child process.
+
+        } else {
+            // parent process
+        }
     }
 
  }
