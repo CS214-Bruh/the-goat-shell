@@ -13,6 +13,7 @@
 
 // DEFINITIONS
 #define BUFFER_SIZE 1024
+#define PATH_LEN 4096
 #ifndef DEBUG
 #define DEBUG 0
 #endif
@@ -31,9 +32,22 @@
      // The input files will use the file descriptor in order to set an input, output.
      // Typically, this should be STDIN_FILENO for input and STDOUT_FILENO
      // Unless there are `<` and `>`
+     int argc;
      int input_file;
      int output_file;
  }command_t;
+
+ /**
+  * Search functionality
+  *
+  * We need a way to search the paths
+  */
+
+ char *search(char *program) {
+     // Taking in a program name, search through all the required locations for the program.
+     // Return where mysh would use as a path.
+     return "name";
+ }
 
 /**
  * Handle all the different possible commands the shell can receive
@@ -47,11 +61,6 @@
  *      - `/usr/local/bin`, `/usr/bin`, and `/bin`
  *      - Using the `access()` function, you can determine whether the file exists
  */
-
-int handle_builtin(command_t* command) {
-    // @todo fill this in
-    return EXIT_SUCCESS;
-}
 
 int handle_non_builtin(command_t command) {
     // @todo fill this in
@@ -75,6 +84,53 @@ int handle_wildcards(char** pathname) {
     // @todo fill this in
     return EXIT_SUCCESS;
 }
+
+/**
+ * Actually run the commands...
+ *
+ * @param command_t* command - A filled out struct with the command, args, and any pipes
+ *
+ */
+ int run_command(command_t *comm) {
+    // Handle pwd, cd, which
+    if(comm->path[0] == '\0') return EXIT_SUCCESS;
+    if(strcmp(comm->path, "cd") == 0) {
+        // Change directory command found
+        if (comm->argc > 1) {
+            // There are more than 1 arguments in cd
+            perror("cd expects only one command.\n");
+            return EXIT_FAILURE;
+        } else {
+            chdir(comm->argv[0]);
+        }
+    } else if (strcmp(comm->path, "pwd") == 0) {
+        // Return present working directory
+        char* directory = malloc(PATH_LEN);
+        if(getcwd(directory, PATH_LEN) == NULL) {
+            perror("Unable to switch directories, are you sure the path is correct?\n");
+            free(directory);
+            return EXIT_FAILURE;
+        } else {
+            write(comm->output_file, directory, strlen(directory));
+            write(comm->output_file, '\n', 1);
+            free(directory);
+            return EXIT_SUCCESS;
+        }
+    } else if (strcmp(comm->path, "which") == 0) {
+        if(comm->argc > 1) {
+            perror("which given wrong number of arguments.\n");
+            return EXIT_FAILURE;
+        } else {
+            char *path = search(comm->argv[0]);
+            if(path[0] == '\0') {
+                perror("Issue with searching...");
+            } else {
+                write(comm->output_file, path, strlen(path));
+            }
+        }
+    }
+
+ }
 
 /**
  * In the main function, we need to be able to distinguish the two modes to run mysh.
