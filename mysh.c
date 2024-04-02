@@ -105,7 +105,12 @@ int main(int argc, char** argv) {
     }
 
     // If no specified input file
-    if(!isatty(STDIN_FILENO)) use_batch = true;
+    if(!isatty(STDIN_FILENO)) {
+        use_batch = true;
+//        int fd = fopen();
+//        dup2(fd, STDIN_FILENO);
+//        close(fd);
+    }
 
     // Interactive mode
     if(!use_batch) printf("Welcome to the shell! Running in interactive mode.\n");
@@ -125,26 +130,36 @@ int main(int argc, char** argv) {
         if(!use_batch) write(STDOUT_FILENO, "mysh> ", 6);
 
         bool first_word = true;
-        int len = 0;
+        int total_length=0, len = 0;
         while((rd = read(STDIN_FILENO, &c, sizeof(char))) >= 0) {
             if(rd < 0) perror("Read error.");
+            else if(rd == 0) {
+                break;
+            }
             else {
-//                    if(DEBUG) printf("%c Read: %i\n", c, rd);
-                buf[len] = c;
+//                if(DEBUG) printf("%c Read: %i\n", c, rd);
+                if(c == '\n') {
+                    break;
+                } else {
+                    buf[total_length] = c;
+                    total_length++;
+                    if(c == ' ') first_word = false;
+                    if(first_word) len++;
+//                    printf("%d length of first word\n", len);
 
-                if(first_word) len++;
-                if(c == ' ') first_word = false;
+                }
 
-                if(c == '\n') break;
             }
         }
+
 //            printf("Command is: %s\n", buf);
-        char comm[len];
-        for(int i= 0; buf[i] != '\n' && buf[i] != ' '; i++) {
+        char comm[len+1];
+        for(int i= 0; i < len; i++) {
+//            printf("%c vs %c\n", comm[i], buf[i]);
             comm[i] = buf[i];
         }
-        comm[len-1] = '\0';
-//            write(STDOUT_FILENO, comm, len);
+        comm[len] = '\0';
+//        write(STDOUT_FILENO, comm, len);
         if(strcmp(comm, "exit") == 0) {
             write(STDOUT_FILENO, "Exit signal received... Goodbye!\n", 33);
             keep_running = false;
@@ -164,7 +179,6 @@ int main(int argc, char** argv) {
                 // Run code for exit failure
             }
         }
-
     }
 
 
