@@ -98,7 +98,7 @@ int read_input(char** buf_ptr, int fd) {
          }
      }
 
-     return "fail";
+     return "fail"; 
  }
 
 /**
@@ -114,19 +114,21 @@ int read_input(char** buf_ptr, int fd) {
  * - These wildcards are ones that include an `*`.
  * - When receiving this, execute the commands on all of the following files
 */
-char** handle_wildcards(char* pathname, char** argv, int* argc) {
+char** handle_wildcards(command_t* command, char * pathname, char** argv, int* argc) {
     char **matching;
     glob_t gstruct;
     int r; 
 
     r = glob(pathname, GLOB_ERR , NULL, &gstruct);
-    
     //error checking
     if( r!=0 ){
         if( r==GLOB_NOMATCH ) {
             //just return the pathname
-            argv[*argc] = pathname;
             *argc++;
+            argv = realloc(argv, (*argc) * sizeof(char *));
+            argv[*argc - 1] = pathname;
+            
+            return argv;
         } else {
             fprintf(stderr,"Some kinda glob error\n");
             return EXIT_FAILURE;
@@ -134,13 +136,18 @@ char** handle_wildcards(char* pathname, char** argv, int* argc) {
         
     }
     
+    printf("current argc before found: %i\n", *argc);
     //increment argc
+    int k = *argc - 1;
     *argc += gstruct.gl_pathc;
-    
+    printf("argc after found: %i\n", *argc);
+    argv = realloc(argv, (*argc) * sizeof(char *));
+
+
     matching = gstruct.gl_pathv;
     while(*matching) {
-        argv[*argc] = *matching;
-        *argc++;
+        argv[k] = *matching;
+        k++;
         matching++;
     }
     return argv;
@@ -162,6 +169,26 @@ bool slash_check(char* token) {
 }
 
 /**
+ * function to add arguments to the argv array
+*/
+char **arg_add(command_t *command, char **argv, int *argc, char *arg)
+{
+    (*argc)++;
+    argv = realloc(argv, (*argc) * sizeof(char *));
+
+    if (argv == NULL) {
+        perror("Failed to allocate memory\n");
+        exit(EXIT_FAILURE);
+    }
+
+    // Add the new element
+    argv[(*argc) - 1] = arg;
+    printf("what was added: %s\n", argv[(*argc) - 1]);
+
+    return argv;
+}
+
+/**
  * Parse each line of commands
  * 
  * possible commands: 
@@ -180,14 +207,16 @@ bool slash_check(char* token) {
 command_t* parse_line(char* line) {
     //initialize struct
     command_t *holder = malloc(sizeof(command_t));
+    holder->argv = NULL;
+    holder->argc = 0;
 
     //array to hold the argv_found
     //update the size later on
-    char* argv_found[50];
-    int row = 0;
+    //char* argv_found[50];
+    //int row = 0;
 
     //search for the first word to determine what to do
-    char first_word[20];
+    char* first_word = malloc(sizeof(char) * 25);
     int k = 0;
     while (!isspace(line[k])) {
         k++;
@@ -202,36 +231,27 @@ command_t* parse_line(char* line) {
         //the first token can be considered as a path
        
         holder->path = first_word;
-        printf("HHIHIHIH\n");
     } else if (strcmp(first_word,"cd") == 0 || strcmp(first_word, "pwd") == 0 || strcmp(first_word,"which") == 0 ) {
         //it's a built-in command
         //STDIN_FILENO for input and STDOUT_FILENO
         
         holder->path = first_word;
-        printf("hi im in here\n");
+        holder->argv = arg_add(holder, holder->argv, &holder->argc, first_word);
         holder->input_file = STDIN_FILENO;
         holder->output_file = STDOUT_FILENO;
     } else {
         //it's a bare name of a program or shell command
-        char* str_tmp = malloc(PATH_LEN);
-        strcpy(str_tmp, search(first_word));
-
-        printf("what's in temp: %s, what's in first word: %s\n", str_tmp, first_word);
-        if (strcmp(str_tmp, "fail") ==0) {
-            //what to do here?
-            //printf("Named program not found\n");
+        char* temp = search(first_word);
+        
+        if (DEBUG) {printf("what's in temp: %s, what's in first word: %s\n", temp, first_word);}
+        if (strcmp(temp, "fail") ==0) {
             //figrue out what to do here
             printf("added as path & first argument\n");
             holder->path = first_word;
-            argv_found[row] = first_word;
-            row++;
-            holder->argc += 1;
+            holder->argv = arg_add(holder, holder->argv, &holder->argc, first_word);
         } else {
-            strcat(str_tmp, first_word);
-//            strcpy(holder->path, str_tmp);
-            holder->path = str_tmp;
-            printf("%s\n", holder->path);
-            printf("uh hi?\n");
+            holder->path = temp;
+            holder->argv = arg_add(holder, holder->argv, &holder->argc, temp);
         }
 //        free(str_tmp);
     }
@@ -256,14 +276,12 @@ command_t* parse_line(char* line) {
     int fd_i;
 
     k++;
-    //hold argc
-    int argc_found = 0;
     while (line[k]) {
         printf("the current char: %c, current pos: %i, current index: %i\n", line[k], pos, k);
         if (isspace(line[k]) && in_word && found == false ) {
             //new argument for argv
             //copy word from string into new var
-            char temp[15];
+            char* temp = malloc(sizeof(char) * 50);
             if (DEBUG) {printf("k: %i, pos: %i\n", k, pos);}
             strncpy(temp, &line[k - (pos - 1)], pos);
             temp[pos] = '\0';
@@ -272,20 +290,19 @@ command_t* parse_line(char* line) {
 
             if (wild_found == true) {
                 //call the wildcard expansion thing
-                handle_wildcards(temp, argv_found, &argc_found);
+                //handle_wildcards(temp, argv_found, &argc_found);
             } else {
-                argv_found[row] = temp;
-                row++; 
+                arg_add(holder, holder->argv, &holder->argc, temp);
+                printf("successful add?\n");
             }
         
             wild_found = false;
             in_word = false;
-            argc_found++;
             pos = 0;
         } else if (isspace(line[k]) && in_word && found == true) {
             //save this as our output/input file for redirection
             //copy word from string into new var
-            char temp[15];
+            char* temp = malloc(sizeof(char) * 50);
             printf("the index: %i, the pos: %i\n", k, pos);
             strncpy(temp, &line[k - (pos - 1)], pos);
             temp[pos] = '\0';
@@ -312,7 +329,7 @@ command_t* parse_line(char* line) {
         } else if (isspace(line[k]) && in_word && pipe_output) {
             //set the piping output
             //copy the word in
-            char temp[15];
+            char* temp = malloc(sizeof(char) * 50);
             strncpy(temp, &line[k - (pos - 1)], pos);
             temp[pos] = '\0';
             in_word = false;
@@ -365,32 +382,25 @@ command_t* parse_line(char* line) {
     //check if still in word and then add to appropriate place
     if (in_word) {
         printf("the pos: %i, the index: %i\n", pos, k);
+        char* temp = malloc(sizeof(char) * 15);
+        strncpy(temp, &line[k - (pos - 2)], pos);
+        temp[pos] = '\0';
+
         if (found == false ) {
             //new argument for argv
-            //copy word from string into new var
-            char temp[15];
-            printf("k: %i, pos: %i\n", k, pos);
-            strncpy(temp, &line[k - (pos - 2)], pos);
-            temp[pos] = '\0';
-            printf("the argument list has added: %s\n", temp);
 
             if (wild_found == true) {
                 //call the wildcard expansion thing
-                handle_wildcards(temp, argv_found, argc_found);
+                holder->argv = handle_wildcards(holder, temp, holder->argv, &holder->argc);
             } else {
-                argv_found[row] = temp;
-                row++; 
+                holder->argv = arg_add(holder, holder->argv, &holder->argc, temp);
+                printf("successful add to arg list of: %s\n", holder->argv[holder->argc - 1]);
             }
-            argc_found++;
             wild_found = false;
             in_word = false;
             pos = 0;
         } else if (found == true) {
             //save this as our output/input file for redirection
-            //copy word from string into new var
-            char temp[15];
-            strncpy(temp, &line[k - (pos - 2)], pos);
-            temp[pos] = '\0';
             in_word = false;
             printf("the file has added: %s\n", temp);
             
@@ -410,18 +420,19 @@ command_t* parse_line(char* line) {
         } else if (pipe_output) {
             //set the piping output
             //if argv is empty, use the path name
-            if (argc_found < 1) {
+            if (holder->argc < 1) {
                 fd_i = open(holder->path, O_RDWR);
             } else {
-                fd_i = open((holder->argv)[argc_found - 1], O_RDWR);
+                fd_i = open((holder->argv)[holder->argc- 1], O_RDWR);
             }
             holder->input_file = fd_i;
             pipe_output = false;
         }
     }
-
-    holder->argc = argc_found;
-    holder->argv = argv_found;
+    printf("the value of argc: %i\n", holder->argc);
+    printf("trying to access later: %s\n", holder->argv[0]);
+    
+    
 
     return holder;
 }
