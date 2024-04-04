@@ -91,13 +91,16 @@ int read_input(char** buf_ptr, int fd) {
      if (DEBUG) printf("long: %s, mid: %s, small: %s\n", search_params[0], search_params[1], search_params[2]);
 
      for(int i = 0; i < 3; i++) {
+        char* search_concat = malloc(PATH_LEN);
+        strcpy(search_concat, search_params[i]);
+        strcat(search_concat, program);
          if (access(search_params[i], F_OK) == 0) {
              //found
-             printf("Found at path: %s\n", search_params[i]);
-             return search_params[i];
+             printf("Found at path: %s\n", search_concat);
+             return search_concat;
          }
+         free(search_concat);
      }
-
      return "fail"; 
  }
 
@@ -382,7 +385,7 @@ command_t* parse_line(char* line) {
     //check if still in word and then add to appropriate place
     if (in_word) {
         printf("the pos: %i, the index: %i\n", pos, k);
-        char* temp = malloc(sizeof(char) * 15);
+        char* temp = malloc(sizeof(char) * BUFFER_SIZE);
         strncpy(temp, &line[k - (pos - 2)], pos);
         temp[pos] = '\0';
 
@@ -449,12 +452,12 @@ command_t* parse_line(char* line) {
     if(comm->path[0] == '\0') return EXIT_SUCCESS;
     if(strcmp(comm->path, "cd") == 0) {
         // Change directory command found
-        if (comm->argc > 1) {
+        if (comm->argc > 2) {
             // There are more than 1 arguments in cd
             perror("cd expects only one command.\n");
             return EXIT_FAILURE;
         } else {
-            chdir(comm->argv[0]);
+            chdir(comm->argv[1]);
         }
     } else if (strcmp(comm->path, "pwd") == 0) {
         // Return present working directory
@@ -600,7 +603,7 @@ int main(int argc, char** argv) {
             if(DEBUG) printf("Old Path is: %s \n", directory);
             run_command(use);
             getcwd(directory, PATH_LEN);
-            if(DEBUG) printf("%s %s \n", use->path, use->argv[0]);
+            if(DEBUG) printf("%s %s \n", use->path, use->argv[1]);
             if(DEBUG) printf("New Path is: %s\n", directory);
             free(use->path);
             free(use);
