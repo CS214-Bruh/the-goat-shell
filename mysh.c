@@ -40,9 +40,42 @@
      int input_file;
      int output_file;
      // Malloc another struct, populate it, and put address here.
-     bool pipe_exists;
-     struct command_struct* piped_command;
+//     bool pipe_exists;
+//     struct command_struct* piped_command;
  }command_t;
+
+ /**
+  * Read Line of input
+  *
+  * @param buf : Pointer to a character buffer that I can write into.
+  * @param fd: File descriptor to read from.
+  * - For anything with pipings, pass in name_of_pipe[0] into this.
+  */
+int read_input(char** buf_ptr, int fd) {
+    int total_length = 0, len = 0, rd;
+    char* buf = *buf_ptr;
+    char c;
+    bool first_word = true;
+     while((rd = read(fd, &c, sizeof(char))) >= 0) {
+         if(rd < 0) perror("Read error.");
+         else if(rd == 0) {
+             break;
+         }
+         else {
+            if(DEBUG) printf("%c Read: %i\n", c, rd);
+             if(c == '\n') {
+                 break;
+             } else {
+                 buf[total_length] = c;
+                 total_length++;
+                 if(c == ' ') first_word = false;
+                 if(first_word) len++;
+             }
+         }
+     }
+     return len;
+}
+
 
  /**
   * Search functionality
@@ -64,33 +97,6 @@
              return search_params[i];
          }
      }
-
-        /*static char longest[50] = "/user/local/bin/";
-        printf("%s\n", longest);
-        strcat(longest, program);
-        if (access(longest, F_OK) == 0) {
-            //found
-            printf("longest: %s\n", longest);
-            return longest;
-        }
-
-        static char mid[50] = "/usr/bin/";
-        printf("%s\n", mid);
-        strcat(mid, program);
-        if (access(mid, F_OK) == 0) {
-            //found
-            printf("mid: %s\n", mid);
-            return mid;
-        }
-
-        static char small[50] = "/bin/";
-        printf("%s\n", small);
-        strcat(small, program);
-        if (access(small, F_OK) == 0) {
-            //found
-            printf("small: %s\n", small);
-            return small;
-        }*/
 
      return "fail";
  }
@@ -466,12 +472,22 @@ command_t* parse_line(char* line) {
         }
     } else {
         // This is for everything else...
+//        int pipe_fd[2];
+//        pipe(pipe_fd);
         pid_t pid = fork();
         if(pid == -1) {
             perror("Error when forking process.\n");
             return EXIT_FAILURE;
         } else if (pid == 0) {
             // In the new child process.
+            dup2 (comm->output_file, STDOUT_FILENO);
+            execv(comm->path, comm->argv);
+            // Handle the piping
+//            if(comm->pipe_exists) {
+//                int pipe_fd_n[2];
+//                pipe(pipe_fd_n);
+//
+//            }
 
         } else {
             // parent process
@@ -529,36 +545,15 @@ int main(int argc, char** argv) {
     char c;
     int rd, prev_exit_status;
     while(keep_running) {
-        char* buf = calloc(1024, sizeof(char));
+        char* buf = calloc(BUFFER_SIZE, sizeof(char));
 
         // Init messages
         if(!use_batch) write(STDOUT_FILENO, "mysh> ", 6);
 
-        bool first_word = true;
-        int total_length=0, len = 0;
-        while((rd = read(STDIN_FILENO, &c, sizeof(char))) >= 0) {
-            if(rd < 0) perror("Read error.");
-            else if(rd == 0) {
-                break;
-            }
-            else {
-                
-//                if(DEBUG) printf("%c Read: %i\n", c, rd);
-                if(c == '\n') {
-                    break;
-                } else {
-                    buf[total_length] = c;
-                    total_length++;
-                    if(c == ' ') first_word = false;
-                    if(first_word) len++;
-//                    printf("%d length of first word\n", len);
-
-                }
-
-            }
-        }
+        // Read the line
         //parse_line(buf);
 //            printf("Command is: %s\n", buf);
+        int len = read_input(&buf, STDIN_FILENO);
         char comm[len+1];
         for(int i= 0; i < len; i++) {
 //            printf("%c vs %c\n", comm[i], buf[i]);
@@ -587,7 +582,7 @@ int main(int argc, char** argv) {
                 // Run code for exit failure
             }
         } else {
-            write(STDOUT_FILENO, buf, total_length);
+            write(STDOUT_FILENO, buf, strlen(buf));
             command_t* use = parse_line(buf);
             char* directory = malloc(PATH_LEN);
             getcwd(directory, PATH_LEN);
