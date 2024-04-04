@@ -50,7 +50,18 @@
      // Taking in a program name, search through all the required locations for the program.
      // Return where mysh would use as a path.
      //we will only search the directories /usr/local/bin, /usr/bin, and /bin
-        static char longest[50] = "/user/local/bin/";
+     static char* search_params[] = {"/user/local/bin/", "/usr/bin/", "/bin/"};
+     if (DEBUG) printf("long: %s, mid: %s, small: %s\n", search_params[0], search_params[1], search_params[2]);
+
+     for(int i = 0; i < 3; i++) {
+         if (access(search_params[i], F_OK) == 0) {
+             //found
+             printf("Found at path: %s\n", search_params[i]);
+             return search_params[i];
+         }
+     }
+
+        /*static char longest[50] = "/user/local/bin/";
         printf("%s\n", longest);
         strcat(longest, program);
         if (access(longest, F_OK) == 0) {
@@ -75,9 +86,7 @@
             //found
             printf("small: %s\n", small);
             return small;
-        }
-
-        if (DEBUG) {printf("long: %s, mid: %s, small: %s\n", longest, mid, small);}
+        }*/
 
      return "fail";
  }
@@ -212,10 +221,11 @@ command_t* parse_line(char* line) {
         holder->output_file = STDOUT_FILENO;
     } else {
         //it's a bare name of a program or shell command
-        char* temp = search(first_word);
-        
-        printf("what's in temp: %s, what's in first word: %s\n", temp, first_word);
-        if (strcmp(temp, "fail") ==0) {
+        char* str_tmp = malloc(PATH_LEN);
+        strcpy(str_tmp, search(first_word));
+
+        printf("what's in temp: %s, what's in first word: %s\n", str_tmp, first_word);
+        if (strcmp(str_tmp, "fail") ==0) {
             //what to do here?
             //printf("Named program not found\n");
             //figrue out what to do here
@@ -225,13 +235,15 @@ command_t* parse_line(char* line) {
             row++;
             holder->argc += 1;
         } else {
-            holder->path = temp;
+            strcat(str_tmp, first_word);
+//            strcpy(holder->path, str_tmp);
+            holder->path = str_tmp;
+            printf("%s\n", holder->path);
             printf("uh hi?\n");
         }
-
+//        free(str_tmp);
     }
     printf("the path: %s, k: %i\n", holder->path, k);
-    
 
     //hold whether or not we've found <,>, |
     bool found = false;
@@ -598,6 +610,7 @@ int main(int argc, char** argv) {
             getcwd(directory, PATH_LEN);
             if(DEBUG) printf("%s %s \n", use->path, use->argv[0]);
             if(DEBUG) printf("New Path is: %s\n", directory);
+            free(use->path);
             free(use);
             free(directory);
             
