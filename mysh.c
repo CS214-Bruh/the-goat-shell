@@ -3,6 +3,7 @@
 */
 
 #include<stdlib.h>
+#include <string.h>
 #include<unistd.h>
 #include<stdbool.h>
 #include<stdio.h>
@@ -45,28 +46,34 @@
   * We need a way to search the paths
   */
 
- char *search(char *program) {
+ char* search(char *program) {
      // Taking in a program name, search through all the required locations for the program.
      // Return where mysh would use as a path.
      //we will only search the directories /usr/local/bin, /usr/bin, and /bin
-        char longest[50] = "/user/local/bin/";
+        static char longest[50] = "/user/local/bin/";
+        printf("%s\n", longest);
         strcat(longest, program);
         if (access(longest, F_OK) == 0) {
             //found
+            printf("longest: %s\n", longest);
             return longest;
         }
 
-        char mid[50] = "/usr/bin/";
+        static char mid[50] = "/usr/bin/";
+        printf("%s\n", mid);
         strcat(mid, program);
         if (access(mid, F_OK) == 0) {
             //found
+            printf("mid: %s\n", mid);
             return mid;
         }
 
-        char small[50] = "/bin/";
+        static char small[50] = "/bin/";
+        printf("%s\n", small);
         strcat(small, program);
         if (access(small, F_OK) == 0) {
             //found
+            printf("small: %s\n", small);
             return small;
         }
 
@@ -163,13 +170,20 @@ bool slash_check(char* token) {
  * 
  * TODO: add the built in ones
  * - add the precedence checking for pipes and redirection 
+ *      - maybe make the initial command for the pipe, then wait until the line is finished to
  * - possibly make it more flexible
  * - set errors for file open failure?
+ * 
 */
 
 command_t* parse_line(char* line) {
     //initialize struct
-    command_t *holder;
+    command_t *holder = malloc(sizeof(command_t));
+
+    //array to hold the argv_found
+    //update the size later on
+    char* argv_found[50];
+    int row = 0;
 
     //search for the first word to determine what to do
     char first_word[20];
@@ -185,26 +199,38 @@ command_t* parse_line(char* line) {
 
     if (slash_check(first_word)) {
         //the first token can be considered as a path
+       
         holder->path = first_word;
-
+        printf("HHIHIHIH\n");
     } else if (strcmp(first_word,"cd") == 0 || strcmp(first_word, "pwd") == 0 || strcmp(first_word,"which") == 0 ) {
         //it's a built-in command
         //STDIN_FILENO for input and STDOUT_FILENO
+        
         holder->path = first_word;
+        printf("hi im in here\n");
         holder->input_file = STDIN_FILENO;
         holder->output_file = STDOUT_FILENO;
     } else {
         //it's a bare name of a program or shell command
         char* temp = search(first_word);
+        
+        printf("what's in temp: %s, what's in first word: %s\n", temp, first_word);
         if (strcmp(temp, "fail") ==0) {
             //what to do here?
-            printf("Named program not found\n");
-            exit(EXIT_FAILURE);
+            //printf("Named program not found\n");
+            //figrue out what to do here
+            printf("added as path & first argument\n");
+            holder->path = first_word;
+            argv_found[row] = first_word;
+            row++;
+            holder->argc += 1;
         } else {
             holder->path = temp;
+            printf("uh hi?\n");
         }
 
     }
+    printf("the path: %s, k: %i\n", holder->path, k);
     
 
     //hold whether or not we've found <,>, |
@@ -219,33 +245,30 @@ command_t* parse_line(char* line) {
     bool in_word = false;
     bool wild_found = false;
 
-    //array to hold the argv_found
-    //update the size later on
-    char* argv_found[50];
-    int row = 0;
     int pos = 1;
 
     //hold the file descriptors
     int fd_o;
     int fd_i;
 
+    k++;
     //hold argc
     int argc_found = 0;
-
-    while (isgraph(line[k])) {
-        if (DEBUG) {printf("the current char: %c\n", line[k]);}
+    while (line[k]) {
+        printf("the current char: %c, current pos: %i, current index: %i\n", line[k], pos, k);
         if (isspace(line[k]) && in_word && found == false ) {
             //new argument for argv
             //copy word from string into new var
             char temp[15];
-            printf("k: %i, pos: %i\n", k, pos);
+            if (DEBUG) {printf("k: %i, pos: %i\n", k, pos);}
             strncpy(temp, &line[k - (pos - 1)], pos);
             temp[pos] = '\0';
-            if (DEBUG) {printf("the argument list has added: %s\n", temp);}
+
+            printf("the argument list has added: %s\n", temp);
 
             if (wild_found == true) {
                 //call the wildcard expansion thing
-                handle_wildcards(temp, argv_found, argc_found);
+                handle_wildcards(temp, argv_found, &argc_found);
             } else {
                 argv_found[row] = temp;
                 row++; 
@@ -254,30 +277,34 @@ command_t* parse_line(char* line) {
             wild_found = false;
             in_word = false;
             argc_found++;
-            pos = 1;
+            pos = 0;
         } else if (isspace(line[k]) && in_word && found == true) {
             //save this as our output/input file for redirection
             //copy word from string into new var
             char temp[15];
+            printf("the index: %i, the pos: %i\n", k, pos);
             strncpy(temp, &line[k - (pos - 1)], pos);
             temp[pos] = '\0';
             in_word = false;
-            if (DEBUG) {printf("the file has added: %s\n", temp);}
+            printf("the file has added: %s\n", temp);
             
             if (output == 1) {
                 //this file is for output redirection
                 fd_o = open(temp, O_RDWR);
                 holder->output_file = fd_o;
+                printf("output: %i\n", fd_o);
             } else if (output == 0) {
                 //this file is for input redirection
                 fd_i = open(temp, O_RDWR);
                 holder->output_file = fd_i;
+                printf("input: %i\n", fd_i);
             }
+            printf("this file is considered: %i\n", output);
             
             //continue adding to arg list
             in_word = false;
             found = false;
-            pos = 1;
+            pos = 0;
         } else if (isspace(line[k]) && in_word && pipe_output) {
             //set the piping output
             //copy the word in
@@ -288,8 +315,16 @@ command_t* parse_line(char* line) {
 
             fd_o = open(temp, O_RDWR);
             holder->output_file = fd_o;
+            printf("file %s has been added as piping output\n", temp);
             
-            pos = 1;
+            command_t* other = malloc(sizeof(command_t));
+            other->output_file = STDOUT_FILENO;
+            fd_i = open(holder->path, O_RDWR);
+            other->input_file = fd_i;
+            other->path = temp;
+            other->argc = 1;
+
+            pos = 0;
             in_word = false;
             pipe_output = false;
         } else if (line[k] == '>' || line[k] == '<') {
@@ -300,18 +335,17 @@ command_t* parse_line(char* line) {
             } else {
                 output = 0;
             }
-            pos = 1;
+            in_word = false;
+            pos = 0;
         } else if (line[k] == '|') {
             //call the search
             found = true;
+            in_word = false;
             pipe_output = true;
             //set the piping input using the last item in the argv list 
-            if (argc_found < 1) {
-                fd_i = open(holder->path, O_RDWR);
-            } else {
-                fd_i = open((holder->argv)[argc_found - 1], O_RDWR);
-            }
-            holder->input_file = fd_i;
+
+            holder->input_file = STDIN_FILENO;
+            pos = 0;
         } else {
             //add to the current word we are building on
             if (line[k] == '*') {
@@ -323,16 +357,18 @@ command_t* parse_line(char* line) {
         k++;
     }
 
+    k--;
     //check if still in word and then add to appropriate place
     if (in_word) {
+        printf("the pos: %i, the index: %i\n", pos, k);
         if (found == false ) {
             //new argument for argv
             //copy word from string into new var
             char temp[15];
-            if (DEBUG) {printf("k: %i, pos: %i\n", k, pos);}
-            strncpy(temp, &line[k - (pos - 1)], pos);
+            printf("k: %i, pos: %i\n", k, pos);
+            strncpy(temp, &line[k - (pos - 2)], pos);
             temp[pos] = '\0';
-            if (DEBUG) {printf("the argument list has added: %s\n", temp);}
+            printf("the argument list has added: %s\n", temp);
 
             if (wild_found == true) {
                 //call the wildcard expansion thing
@@ -344,15 +380,15 @@ command_t* parse_line(char* line) {
             argc_found++;
             wild_found = false;
             in_word = false;
-            pos = 1;
+            pos = 0;
         } else if (found == true) {
             //save this as our output/input file for redirection
             //copy word from string into new var
             char temp[15];
-            strncpy(temp, &line[k - (pos - 1)], pos);
+            strncpy(temp, &line[k - (pos - 2)], pos);
             temp[pos] = '\0';
             in_word = false;
-            if (DEBUG) {printf("the file has added: %s\n", temp);}
+            printf("the file has added: %s\n", temp);
             
             if (output == 1) {
                 //this file is for output redirection
@@ -508,6 +544,7 @@ int main(int argc, char** argv) {
                 break;
             }
             else {
+                
 //                if(DEBUG) printf("%c Read: %i\n", c, rd);
                 if(c == '\n') {
                     break;
@@ -522,7 +559,7 @@ int main(int argc, char** argv) {
 
             }
         }
-
+        //parse_line(buf);
 //            printf("Command is: %s\n", buf);
         char comm[len+1];
         for(int i= 0; i < len; i++) {
@@ -553,8 +590,13 @@ int main(int argc, char** argv) {
             }
         } else {
             write(STDOUT_FILENO, buf, total_length);
+            command_t* use = parse_line(buf);
+            free(use);
+            
         }
         free(buf);
+        
+
     }
 
 
