@@ -31,6 +31,7 @@
  */
  typedef struct command_struct {
      char* path;
+     // Malloc a variable arraylist
      char** argv;
      // The input files will use the file descriptor in order to set an input, output.
      // Typically, this should be STDIN_FILENO for input and STDOUT_FILENO
@@ -38,6 +39,9 @@
      int argc;
      int input_file;
      int output_file;
+     // Malloc another struct, populate it, and put address here.
+     bool pipe_exists;
+     struct command_struct* piped_command;
  }command_t;
 
  /**
@@ -90,24 +94,6 @@
 
      return "fail";
  }
-
-/**
- * Handle all the different possible commands the shell can receive
- *
- * There are two types of commands possible:
- *
- * @b In-built commands:
- * - These commands are the `cd`, `pwd`, and `which` commands.
- * @b Executables in Directories:
- * - There are 3 different locations to search:
- *      - `/usr/local/bin`, `/usr/bin`, and `/bin`
- *      - Using the `access()` function, you can determine whether the file exists
- */
-
-int handle_non_builtin(command_t command) {
-    // @todo fill this in
-    return EXIT_FAILURE;
-}
 
 /**
  * @b Processes
@@ -177,7 +163,7 @@ bool slash_check(char* token) {
  * - cd, pwd, which, exit
  * - cp, mv, cat (don't have to implement ourselves
  * 
- * TODO: add the built in ones
+ *
  * - add the precedence checking for pipes and redirection 
  *      - maybe make the initial command for the pipe, then wait until the line is finished to
  * - possibly make it more flexible
