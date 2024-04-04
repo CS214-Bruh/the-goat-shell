@@ -591,12 +591,18 @@ int main(int argc, char** argv) {
         } else {
             write(STDOUT_FILENO, buf, total_length);
             command_t* use = parse_line(buf);
+            char* directory = malloc(PATH_LEN);
+            getcwd(directory, PATH_LEN);
+            if(DEBUG) printf("Old Path is: %s \n", directory);
+            run_command(use);
+            getcwd(directory, PATH_LEN);
+            if(DEBUG) printf("%s %s \n", use->path, use->argv[0]);
+            if(DEBUG) printf("New Path is: %s\n", directory);
             free(use);
+            free(directory);
             
         }
         free(buf);
-        
-
     }
 
 

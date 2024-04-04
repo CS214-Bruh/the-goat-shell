@@ -1,4 +1,2 @@
-what is this
-else statement
-then stuff
+cd script-files
 exit
