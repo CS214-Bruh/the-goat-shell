@@ -45,10 +45,6 @@
   * free command struct
  */
 void free_struct(command_t* command) {
-    if (command->pipe_exists) {
-        printf("is piped\n");
-        free_struct(command->piped_command);
-    }
 
     //iterator for argv
     int i = 0;
@@ -279,7 +275,6 @@ command_t* parse_line(char* line) {
     command_t *holder = malloc(sizeof(command_t));
     holder->argv = NULL;
     holder->argc = 0;
-    holder->pipe_exists = false;
 
     //array to hold the argv_found
     //update the size later on
@@ -363,7 +358,7 @@ command_t* parse_line(char* line) {
                 in_word = false;
                 found = false;
                 pos = 0;
-            } else if (holder->pipe_exists) {
+            } else if (pipe_output) {
                 //make new struct for piping output
                 fd_o = open(temp, O_RDWR);
                 holder->output_file = fd_o;
@@ -372,7 +367,6 @@ command_t* parse_line(char* line) {
                 //make new command for piping output
                 command_t* other = malloc(sizeof(command_t));
                 other->path = temp;
-                holder->piped_command = other;
                 fd_o = open(other->path, O_RDWR);
                 other->output_file = STDOUT_FILENO;
                 fd_i = open(holder->path, O_RDWR);
@@ -400,7 +394,7 @@ command_t* parse_line(char* line) {
             //call the search
             found = true;
             in_word = false;
-            holder->pipe_exists = true;
+            pipe_output = true;
 
             //set the piping input using the last item in the argv list
             holder->input_file = STDIN_FILENO;
