@@ -273,6 +273,7 @@ void find_path(command_t *command, char* first_word) {
 command_t* parse_line(char* line) {
     //initialize struct
     command_t *holder = malloc(sizeof(command_t));
+    command_t *piped_comm;
     holder->argv = NULL;
     holder->argc = 0;
 
@@ -316,12 +317,15 @@ command_t* parse_line(char* line) {
     int fd_o;
     int fd_i;
 
+    int pipes[2];
+    pipe(pipes);
+
     //increment index past space
     k++;
     while (line[k]) {
         if (DEBUG) {printf("the current char: %c, current pos: %i, current index: %i\n", line[k], pos, k);}
         if (isspace(line[k] && in_word)) {
-            //copy the word in 
+            //copy the word in
             char* temp = malloc(sizeof(char) * 50);
             if (DEBUG) {printf("k: %i, pos: %i\n", k, pos);}
             strncpy(temp, &line[k - (pos - 1)], pos);
@@ -335,7 +339,7 @@ command_t* parse_line(char* line) {
                 } else {
                     arg_add(holder, holder->argv, &holder->argc, temp);
                 }
-            
+
                 wild_found = false;
                 in_word = false;
                 pos = 0;
@@ -353,17 +357,18 @@ command_t* parse_line(char* line) {
                     printf("input: %i\n", fd_i);
                 }
                 if (DEBUG) {printf("this file is considered: %i\n", output);}
-                
+
                 //continue adding to arg list
                 in_word = false;
                 found = false;
                 pos = 0;
             } else if (pipe_output) {
                 //make new struct for piping output
-                fd_o = open(temp, O_RDWR);
-                holder->output_file = fd_o;
-                if (DEBUG) {printf("file %s has been added as piping output\n", temp);}
-                
+//                fd_o = open(temp, O_RDWR);
+//                holder->output_file = fd_o;
+//                if (DEBUG) {printf("file %s has been added as piping output\n", );}
+
+                piped_comm->path = temp;
                 //make new command for piping output
                 /*other = malloc(sizeof(command_t));
                 other->path = temp;
@@ -395,14 +400,17 @@ command_t* parse_line(char* line) {
             found = true;
             in_word = false;
             pipe_output = true;
+            piped_comm = malloc(sizeof(command_t));
 
             //set the piping input using the last item in the argv list
-            holder->input_file = STDIN_FILENO;
+            holder->output_file = pipes[0];
+            piped_comm->input_file = pipes[1];
             pos = 0;
 
             //call parseline again on a new struct to run the next command
             printf("what's line in 2 spaces: %c\n", line[k+2]);
-            command_t* second_half  = parse_line(&line[k+2]);
+//            piped_comm  = parse_line(&line[k+2]);
+
         } else {
             //add to the current word we are building on
             if (line[k] == '*') {
@@ -450,7 +458,7 @@ command_t* parse_line(char* line) {
             //save this as our output/input file for redirection
             in_word = false;
             printf("the file has added: %s\n", temp);
-            
+
             if (output == 1) {
                 //this file is for output redirection
                 fd_o = open(temp, O_RDWR);
@@ -466,6 +474,12 @@ command_t* parse_line(char* line) {
             pos = 1;
         }
     }
+
+    if(DEBUG) { printf("Input %uc, Output %uc\n", holder->input_file, holder->output_file);}
+    if(DEBUG) { printf("Input %uc, Output %uc\n", piped_comm->input_file, piped_comm->output_file);}
+    if(DEBUG) { printf("Input %s\n", piped_comm->path);}
+
+
     return holder;
 }
 
@@ -534,9 +548,14 @@ command_t* parse_line(char* line) {
 
         } else {
             // parent process
+            int st;
+            if (waitpid(pid, &st, 0) == -1) {
+                perror("Error with child process");
+                return EXIT_FAILURE;
+            }
         }
+        return EXIT_FAILURE;
     }
-
  }
 
 /**
