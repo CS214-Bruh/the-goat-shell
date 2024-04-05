@@ -21,6 +21,9 @@
 #define DEBUG 0
 #endif
 
+int pipes[2];
+pipe(pipes);
+
 /**
  * Create a struct for storing each line of commands
  *
@@ -58,7 +61,7 @@ void free_struct(command_t* command) {
     }
 
     //free each argument
-    for (i; i < command->argc; i++) {
+    for (i =0; i < command->argc; i++) {
         printf("argv at %i: %s\n", i, command->argv[i]);
         free(command->argv[i]);
     }
@@ -156,14 +159,14 @@ char** handle_wildcards(command_t* command, char * pathname, char** argv, int* a
     if( r!=0 ){
         if( r==GLOB_NOMATCH ) {
             //just return the pathname
-            *argc++;
-            argv = realloc(argv, (*argc) * sizeof(char *));
+//            *argc++;
+            argv = realloc(argv, ++(*argc) * sizeof(char *));
             argv[*argc - 1] = pathname;
             
             return argv;
         } else {
             fprintf(stderr,"Some kinda glob error\n");
-            return EXIT_FAILURE;
+            return NULL;
         }
         
     }
@@ -255,6 +258,77 @@ void find_path(command_t *command, char* first_word) {
 }
 
 /**
+ * Actually run the commands...
+ *
+ * @param command_t* command - A filled out struct with the command, args, and any pipes
+ *
+ */
+int run_command(command_t *comm) {
+    // Handle pwd, cd, which
+    if(comm->path[0] == '\0') return EXIT_SUCCESS;
+    if(strcmp(comm->path, "cd") == 0) {
+        // Change directory command found
+        if (comm->argc > 2) {
+            // There are more than 1 arguments in cd
+            perror("cd expects only one command.\n");
+            return EXIT_FAILURE;
+        } else {
+            chdir(comm->argv[1]);
+        }
+    } else if (strcmp(comm->path, "pwd") == 0) {
+        // Return present working directory
+        char* directory = malloc(PATH_LEN);
+        if(getcwd(directory, PATH_LEN) == NULL) {
+            perror("Unable to switch directories, are you sure the path is correct?\n");
+            free(directory);
+            return EXIT_FAILURE;
+        } else {
+            write(comm->output_file, directory, strlen(directory));
+            write(comm->output_file, "\n", 1);
+            free(directory);
+            return EXIT_SUCCESS;
+        }
+    } else if (strcmp(comm->path, "which") == 0) {
+        if(comm->argc > 1) {
+            perror("which given wrong number of arguments.\n");
+            return EXIT_FAILURE;
+        } else {
+            char *path = search(comm->argv[0]);
+            if(path[0] == '\0') {
+                perror("Issue with searching...");
+            } else {
+                write(comm->output_file, path, strlen(path));
+            }
+        }
+    } else {
+        // This is for everything else...
+        pid_t pid = fork();
+        if(pid == -1) {
+            perror("Error when forking process.\n");
+            return EXIT_FAILURE;
+        } else if (pid == 0) {
+            // In the new child process.
+            printf("Got to child process. %u\n", comm->output_file);
+            dup2 (comm->output_file, STDOUT_FILENO);
+            printf("Execute success. %s\n", comm->argv[0]);
+
+            execv(comm->path, comm->argv);
+
+        } else {
+            // parent process
+            int st;
+            if (waitpid(pid, &st, 0) == -1) {
+                perror("Error with child process");
+                return EXIT_FAILURE;
+            }
+        }
+        printf("Got to the else part\n");
+
+        return EXIT_SUCCESS;
+    }
+}
+
+/**
  * Parse each line of commands
  * 
  * possible commands: 
@@ -270,7 +344,7 @@ void find_path(command_t *command, char* first_word) {
  * 
 */
 
-command_t* parse_line(char* line) {
+int parse_line(char* line) {
     printf("%s\n", line);
     //initialize struct
     command_t *holder = malloc(sizeof(command_t));
@@ -286,7 +360,7 @@ command_t* parse_line(char* line) {
     //search for the first word to determine what to do
     char* first_word = malloc(sizeof(char) * 1024);
     int k = 0;
-    while (!isspace(line[k])) {
+    while (k < strlen(line) && !isspace(line[k])) {
         k++;
     }
 
@@ -315,8 +389,6 @@ command_t* parse_line(char* line) {
     //hold the file descriptors
     int fd_o, fd_i;
 
-    int pipes[2];
-    pipe(pipes);
 
     //increment index past space
     k++;
@@ -359,6 +431,9 @@ command_t* parse_line(char* line) {
                 find_path(piped_comm, read_word);
                 printf("found path: %s\n", piped_comm->path);
                 piped_output_first_word = true;
+            } else {
+                // All thats left are arguments to the pipe, just add em to args
+                piped_comm->argv = arg_add(piped_comm, piped_comm->argv, &piped_comm->argc, read_word);
             }
         } else {
             // In here, it is not a pipe, nor is the word a symbol, so add it to first command.
@@ -374,6 +449,7 @@ command_t* parse_line(char* line) {
             piped_comm->argv = malloc(sizeof(char*));
             piped_comm->argc = 0;
             piped_comm->input_file = pipes[0];
+            holder->output_file = pipes[1];
             piped_comm->output_file = STDOUT_FILENO;
         }
 //        printf("%c\n", line[k]);
@@ -382,85 +458,60 @@ command_t* parse_line(char* line) {
 //        printf("%c\n", line[k]);
     }
 
-    for(int i =0; i < holder->argc; i++) {
-        printf("Argument #%d: %s ", i, holder->argv[i]);
-    }
-}
+//    if(DEBUG) {
+//        for(int i =0; i < holder->argc; i++) {
+//            printf("Argument #%d: %s ", i, holder->argv[i]);
+//        }
+//        printf("\n");
+//        for(int i =0; i < piped_comm->argc; i++) {
+//            printf("Argument #%d: %s ", i, piped_comm->argv[i]);
+//        }
+//        printf("\n");
+//    }
 
+    // Once we're here, we have created the two structs that we need. Now, we just run the first one if there is piping.
+    if(pipe_output) {
+        if(run_command(holder) == EXIT_FAILURE) {
+            perror("Error running first command...\n");
+            return EXIT_FAILURE;
+        } else {    // Command succeeded, now actually read the all the inputs again!
+            printf("Was able to get here.\n");
+            close(pipes[1]);
+            int rd, len, buff_size = BUFFER_SIZE;
+            char *buff = calloc(buff_size, sizeof(char));
+            char c;
+            while((rd = read(pipes[0], &c, sizeof(char))) > 0) {
+                if(rd < 0) {
+                    perror("Error wtih reading pipe");
+                    return EXIT_FAILURE;
+                } else {
+                    if(len >= buff_size) {
+                        buff = realloc(buff, buff_size*2);
+                        buff_size *=2;
+                    }
+                    buff[len] = c;
+                    len++;
+                }
+            }
+            close(pipes[0]);
 
-/**
- * Actually run the commands...
- *
- * @param command_t* command - A filled out struct with the command, args, and any pipes
- *
- */
- int run_command(command_t *comm) {
-    // Handle pwd, cd, which
-    if(comm->path[0] == '\0') return EXIT_SUCCESS;
-    if(strcmp(comm->path, "cd") == 0) {
-        // Change directory command found
-        if (comm->argc > 2) {
-            // There are more than 1 arguments in cd
-            perror("cd expects only one command.\n");
-            return EXIT_FAILURE;
-        } else {
-            chdir(comm->argv[1]);
-        }
-    } else if (strcmp(comm->path, "pwd") == 0) {
-        // Return present working directory
-        char* directory = malloc(PATH_LEN);
-        if(getcwd(directory, PATH_LEN) == NULL) {
-            perror("Unable to switch directories, are you sure the path is correct?\n");
-            free(directory);
-            return EXIT_FAILURE;
-        } else {
-            write(comm->output_file, directory, strlen(directory));
-            write(comm->output_file, '\n', 1);
-            free(directory);
-            return EXIT_SUCCESS;
-        }
-    } else if (strcmp(comm->path, "which") == 0) {
-        if(comm->argc > 1) {
-            perror("which given wrong number of arguments.\n");
-            return EXIT_FAILURE;
-        } else {
-            char *path = search(comm->argv[0]);
-            if(path[0] == '\0') {
-                perror("Issue with searching...");
-            } else {
-                write(comm->output_file, path, strlen(path));
+            buff = realloc(buff, len+1);
+            piped_comm->argv = arg_add(piped_comm, piped_comm->argv, &piped_comm->argc, buff);
+            for(int i =0; i < piped_comm->argc; i++) {
+                printf("Argument #%d: %s ", i, piped_comm->argv[i]);
             }
         }
     } else {
-        // This is for everything else...
-//        int pipe_fd[2];
-//        pipe(pipe_fd);
-        pid_t pid = fork();
-        if(pid == -1) {
-            perror("Error when forking process.\n");
+        if(run_command(holder) == EXIT_FAILURE) {
+            perror("Error running first command...");
+//            free_struct(holder);
             return EXIT_FAILURE;
-        } else if (pid == 0) {
-            // In the new child process.
-            dup2 (comm->output_file, STDOUT_FILENO);
-            execv(comm->path, comm->argv);
-            // Handle the piping
-//            if(comm->pipe_exists) {
-//                int pipe_fd_n[2];
-//                pipe(pipe_fd_n);
-//
-//            }
-
         } else {
-            // parent process
-            int st;
-            if (waitpid(pid, &st, 0) == -1) {
-                perror("Error with child process");
-                return EXIT_FAILURE;
-            }
+//            free_struct(holder);
+            return EXIT_SUCCESS;
         }
-        return EXIT_FAILURE;
     }
- }
+}
 
 /**
  * In the main function, we need to be able to distinguish the two modes to run mysh.
@@ -539,6 +590,7 @@ int main(int argc, char** argv) {
                 // Run code for exit success
                 // Need to get everything past the "then" statement
                 // That will be passed to the argument parser
+                prev_exit_status = parse_line(buf);
             }
         } else if(strcmp(comm, "else") == 0) {
             // received an else statement
@@ -546,21 +598,21 @@ int main(int argc, char** argv) {
             if(DEBUG) printf("%s \n", buf+len+1);
             if(prev_exit_status == EXIT_FAILURE) {
                 // Run code for exit failure
+                prev_exit_status = parse_line(buf);
             }
         } else {
             write(STDOUT_FILENO, buf, strlen(buf));
-            command_t* use = parse_line(buf);
-            char* directory = malloc(PATH_LEN);
-            getcwd(directory, PATH_LEN);
-            if(DEBUG) printf("Old Path is: %s \n", directory);
+            prev_exit_status = parse_line(buf);
+//            char* directory = malloc(PATH_LEN);
+//            getcwd(directory, PATH_LEN);
+//            if(DEBUG) printf("Old Path is: %s \n", directory);
 //            run_command(use);
-            getcwd(directory, PATH_LEN);
+//            getcwd(directory, PATH_LEN);
 //            if(DEBUG) printf("%s %s \n", use->path, use->argv[1]);
 //            if(DEBUG) printf("New Path is: %s\n", directory);
             
-            free(directory);
+//            free(directory);
 //            free_struct(use);
-            
         }
         free(buf);
     }
