@@ -122,7 +122,7 @@ int read_input(char** buf_ptr, int fd) {
         char* search_concat = malloc(PATH_LEN);
         strcpy(search_concat, search_params[i]);
         strcat(search_concat, program);
-         if (access(search_params[i], F_OK) == 0) {
+         if (access(search_concat, F_OK) == 0) {
              //found
              printf("Found at path: %s\n", search_concat);
              return search_concat;
@@ -300,7 +300,8 @@ command_t* parse_line(char* line) {
     if (DEBUG) {printf("the path: %s, k: %i\n", holder->path, k);}
 
     //hold whether or not we've found <,>, |
-    bool found = false;
+    bool found_input_redir = false;
+    bool found_output_redir = false;
 
     //1 if output >, 0 if input <
     bool output = 0;
@@ -309,18 +310,13 @@ command_t* parse_line(char* line) {
     bool piped_output_first_word = false;
 
     //vars to hold whether in word or not and if there's wildcard
-    bool in_word = false;
-    bool wild_found = false;
-
-    //holds where in the word we're at
-    int pos = 1;
+    bool in_word = false, wild_found = false;
 
     //hold the file descriptors
     int fd_o, fd_i;
 
     int pipes[2];
     pipe(pipes);
-
 
     //increment index past space
     k++;
@@ -336,12 +332,25 @@ command_t* parse_line(char* line) {
             k++;        // Add one to the char line
         }
         read_word[word_size] = '\0';
+        read_word = realloc(read_word, word_size+1);
         if(DEBUG) printf("This is the word read: %s of length: %d with pipe_found = %d\n", read_word, word_size, pipe_output);
 
+
+        // Checking for all the symbols possible
         bool found_pipe = false;
-        if(strcmp(read_word, "|") == 0) {
-            found_pipe = true;
-            printf("found pipe\n");
+        if(strcmp(read_word, "|") == 0 || strcmp(read_word, "<") == 0 || strcmp(read_word, ">") == 0) {
+            if(strcmp(read_word, "|") == 0) {
+                found_pipe = true;
+                printf("found pipe\n");
+            } else if (strcmp(read_word, "<") == 0) {
+                found_input_redir = true;
+                if(DEBUG) printf("Found input redirection symbol\n");
+            } else if(strcmp(read_word, ">") == 0) {
+                found_output_redir = true;
+                if(DEBUG) printf("Found output redirection symbol.\n");
+            }
+            free(read_word);
+
         }
         else if(pipe_output) {
             // Code for if after here, we are doing piped output
@@ -351,17 +360,30 @@ command_t* parse_line(char* line) {
                 printf("found path: %s\n", piped_comm->path);
                 piped_output_first_word = true;
             }
+        } else {
+            // In here, it is not a pipe, nor is the word a symbol, so add it to first command.
+            if(DEBUG) printf("Matched no symbols: %s\n", read_word);
+            holder->argv = arg_add(holder, holder->argv, &holder->argc, read_word);
+
         }
+
+        // Wait until this loop has completed to change the actual thing
         if(found_pipe) {
             pipe_output = found_pipe;
             piped_comm = malloc(sizeof(command_t));
             piped_comm->argv = malloc(sizeof(char*));
+            piped_comm->argc = 0;
+            piped_comm->input_file = pipes[0];
+            piped_comm->output_file = STDOUT_FILENO;
         }
-        free(read_word);
 //        printf("%c\n", line[k]);
 //        printf("%c\n", line[k]);
         k++;
 //        printf("%c\n", line[k]);
+    }
+
+    for(int i =0; i < holder->argc; i++) {
+        printf("Argument #%d: %s ", i, holder->argv[i]);
     }
 }
 
