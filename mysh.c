@@ -254,7 +254,8 @@ void find_path(command_t *command, char* first_word) {
             command->path = first_word;
             command->argv = arg_add(command, command->argv, &command->argc, first_word);
         } else {
-            command->path = temp;
+            first_word = temp;
+            command->path = first_word;
             command->argv = arg_add(command, command->argv, &command->argc, temp);
         }
     }
@@ -301,7 +302,7 @@ command_t* parse_line(char* line) {
     if (DEBUG) { printf("the first token: %s\n", first_word);}
 
     find_path(holder, first_word);
-    free(first_word);
+    //free(first_word);
     if (DEBUG) {printf("the path: %s, k: %i\n", holder->path, k);}
 
     //hold whether or not we've found <,>, |
