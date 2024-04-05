@@ -282,7 +282,7 @@ command_t* parse_line(char* line) {
     //int row = 0;
 
     //search for the first word to determine what to do
-    char* first_word = malloc(sizeof(char) * 25);
+    char* first_word = malloc(sizeof(char) * 1024);
     int k = 0;
     while (!isspace(line[k])) {
         k++;
@@ -365,14 +365,14 @@ command_t* parse_line(char* line) {
                 if (DEBUG) {printf("file %s has been added as piping output\n", temp);}
                 
                 //make new command for piping output
-                command_t* other = malloc(sizeof(command_t));
+                /*other = malloc(sizeof(command_t));
                 other->path = temp;
                 fd_o = open(other->path, O_RDWR);
                 other->output_file = STDOUT_FILENO;
                 fd_i = open(holder->path, O_RDWR);
                 other->input_file = fd_i;
                 
-                other->argc = 1;
+                other->argc = 1; */
 
                 pos = 0;
                 in_word = false;
@@ -399,6 +399,10 @@ command_t* parse_line(char* line) {
             //set the piping input using the last item in the argv list
             holder->input_file = STDIN_FILENO;
             pos = 0;
+
+            //call parseline again on a new struct to run the next command
+            printf("what's line in 2 spaces: %c\n", line[k+2]);
+            command_t* second_half  = parse_line(&line[k+2]);
         } else {
             //add to the current word we are building on
             if (line[k] == '*') {
@@ -431,7 +435,18 @@ command_t* parse_line(char* line) {
             wild_found = false;
             in_word = false;
             pos = 0;
-        } else if (found == true) {
+        } /*else if (pipe_output) {
+            //set the piping output
+            //if argv is empty, use the path name
+            //printf("%s\n", other->path);
+            if (holder->argc < 1) {
+                fd_i = open(holder->path, O_RDWR);
+            } else {
+                fd_i = open((holder->argv)[holder->argc- 1], O_RDWR);
+            }
+            holder->input_file = fd_i;
+            pipe_output = false;
+        } */ else if (found == true) {
             //save this as our output/input file for redirection
             in_word = false;
             printf("the file has added: %s\n", temp);
@@ -449,19 +464,8 @@ command_t* parse_line(char* line) {
             //continue adding to arg list
             found = false;
             pos = 1;
-        } else if (pipe_output) {
-            //set the piping output
-            //if argv is empty, use the path name
-            if (holder->argc < 1) {
-                fd_i = open(holder->path, O_RDWR);
-            } else {
-                fd_i = open((holder->argv)[holder->argc- 1], O_RDWR);
-            }
-            holder->input_file = fd_i;
-            pipe_output = false;
         }
     }
-
     return holder;
 }
 
@@ -630,8 +634,9 @@ int main(int argc, char** argv) {
             getcwd(directory, PATH_LEN);
             if(DEBUG) printf("%s %s \n", use->path, use->argv[1]);
             if(DEBUG) printf("New Path is: %s\n", directory);
-            free_struct(use);
+            
             free(directory);
+            free_struct(use);
             
         }
         free(buf);
