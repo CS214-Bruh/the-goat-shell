@@ -39,9 +39,6 @@
      int argc;
      int input_file;
      int output_file;
-     // Malloc another struct, populate it, and put address here.
-     bool pipe_exists;
-     struct command_struct* piped_command;
  }command_t;
 
   /**
@@ -122,7 +119,7 @@ int read_input(char** buf_ptr, int fd) {
      // Taking in a program name, search through all the required locations for the program.
      // Return where mysh would use as a path.
      //we will only search the directories /usr/local/bin, /usr/bin, and /bin
-     static char* search_params[] = {"/user/local/bin/", "/usr/bin/", "/bin/"};
+     static char* search_params[] = {"/usr/local/bin/", "/usr/bin/", "/bin/"};
      if (DEBUG) printf("long: %s, mid: %s, small: %s\n", search_params[0], search_params[1], search_params[2]);
 
      for(int i = 0; i < 3; i++) {
