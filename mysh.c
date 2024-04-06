@@ -58,7 +58,7 @@ void free_struct(command_t* command) {
     }
 
     //free each argument
-    for (i =0; i < command->argc; i++) {
+    for (i; i < command->argc; i++) {
         printf("argv at %i: %s\n", i, command->argv[i]);
         free(command->argv[i]);
     }
@@ -157,7 +157,13 @@ char** handle_wildcards(command_t* command, char * pathname, char** argv, int* a
         if( r==GLOB_NOMATCH ) {
             //just return the pathname
 //            *argc++;
-            argv = realloc(argv, ++(*argc) * sizeof(char *));
+            char** temp = realloc(argv, ++(*argc) * sizeof(char *));
+            if (!temp) {
+                perror("Failed to allocate memory\n");
+                exit(EXIT_FAILURE);
+            } else {
+                argv = temp;
+            }
             argv[*argc - 1] = pathname;
             
             return argv;
@@ -173,8 +179,13 @@ char** handle_wildcards(command_t* command, char * pathname, char** argv, int* a
     int k = *argc - 1;
     *argc += gstruct.gl_pathc;
     printf("argc after found: %i\n", *argc);
-    argv = realloc(argv, (*argc) * sizeof(char *));
-
+    char** temp = realloc(argv, (*argc) * sizeof(char *));
+    if (!temp) {
+        perror("Failed to allocate memory\n");
+        exit(EXIT_FAILURE);
+    } else {
+        argv = temp;
+    }
 
     matching = gstruct.gl_pathv;
     while(*matching) {
@@ -206,11 +217,12 @@ bool slash_check(char* token) {
 char **arg_add(command_t *command, char **argv, int *argc, char *arg)
 {
     (*argc)++;
-    argv = realloc(argv, (*argc) * sizeof(char *));
-
-    if (argv == NULL) {
+    char** temp = realloc(argv, (*argc) * sizeof(char *));
+    if (!temp ){
         perror("Failed to allocate memory\n");
         exit(EXIT_FAILURE);
+    } else {
+        argv = temp;
     }
 
     // Add the new element
@@ -456,6 +468,9 @@ int parse_line(char* line) {
         char* read_word = malloc(PATH_LEN);
         while(k < strlen(line) && !isspace(line[k])) {
             if(DEBUG) printf("read letter: %c, new length %d\n", line[k], word_size);
+            if (line[k] == '*') {
+                wild_found = true;
+            }
             read_word[word_size] = line[k];
             word_size++;
             k++;        // Add one to the char line
@@ -493,9 +508,34 @@ int parse_line(char* line) {
                 piped_comm->argv = arg_add(piped_comm, piped_comm->argv, &piped_comm->argc, read_word);
             }
         } else {
-            // In here, it is not a pipe, nor is the word a symbol, so add it to first command.
+            // In here, it is not a pipe, nor is the word a symbol
+            // Check for input/output status & wildcard status
+            // Add to appropriate location accordingly 
             if(DEBUG) printf("Matched no symbols: %s\n", read_word);
-            holder->argv = arg_add(holder, holder->argv, &holder->argc, read_word);
+            if (found_input_redir) {
+                // Set the input file, then set to false to continue parsing
+                // Set output to stdout
+                fd_i = open(read_word, O_RDWR);
+                holder->input_file = fd_i;
+
+                found_input_redir = false;
+            } else if (found_output_redir) {
+                // Set the output file, then set to false to continue parsing
+                // Set input to stdin
+                fd_o = open(read_word, O_RDWR);
+                holder->output_file = fd_o;
+
+                found_output_redir = false;
+            } else {
+                // Check for wildcard, then add to argument list
+                if (wild_found) {
+                    if (DEBUG) {printf("looking for wildcard\n");}
+                    holder->argv = handle_wildcards(holder, read_word, holder->argv, &holder->argc);
+                } else {
+                    holder->argv = arg_add(holder, holder->argv, &holder->argc, read_word);
+                } 
+            }
+            
 
         }
 
@@ -514,6 +554,17 @@ int parse_line(char* line) {
         k++;
 //        printf("%c\n", line[k]);
     }
+
+    // Check to see if output & input were set, if not, make standard
+    if (!holder->output_file) {
+        if (DEBUG) {printf("no output set\n");}
+        holder->output_file = STDOUT_FILENO;
+    }
+    if (!holder->input_file) {
+        if (DEBUG) {printf("no input set\n");}
+        holder->input_file = STDIN_FILENO;
+    }
+    
 
 //    if(DEBUG) {
 //        for(int i =0; i < holder->argc; i++) {
@@ -575,6 +626,7 @@ int parse_line(char* line) {
             return EXIT_SUCCESS;
         }
     }
+    free_struct(holder);
 }
 
 /**
