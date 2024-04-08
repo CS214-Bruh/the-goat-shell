@@ -5,11 +5,14 @@ cat ./test-dir/test.c
 cd test-dir
 
 #piping example
+give.c | out.c
 
 #redirection examples
-
+cat < ./test-dir/test.c > receive.txt
+./test-dir/receive.txt < ./test-dir/out.c
 
 #tricky piping precedence example
+give.c | receive.txt > out.c
 
 #conditional examples
 cat ./test-dir/test.c
