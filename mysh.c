@@ -193,6 +193,8 @@ char** handle_wildcards(command_t* command, char * pathname, char** argv, int* a
         k++;
         matching++;
     }
+    //free glob
+   // globfree(&gstruct);
     return argv;
 }
 
@@ -242,6 +244,7 @@ void find_path(command_t *command, char* first_word) {
         //the first token can be considered as a path
        
         command->path = first_word;
+        //return true;
     } else if (strcmp(first_word,"cd") == 0 || strcmp(first_word, "pwd") == 0 || strcmp(first_word,"which") == 0 ) {
         //it's a built-in command
         //STDIN_FILENO for input and STDOUT_FILENO
@@ -250,6 +253,7 @@ void find_path(command_t *command, char* first_word) {
         command->argv = arg_add(command, command->argv, &command->argc, first_word);
         command->input_file = STDIN_FILENO;
         command->output_file = STDOUT_FILENO;
+        //return true;
     } else {
         //it's a bare name of a program or shell command
         char* temp = search(first_word);
@@ -264,6 +268,7 @@ void find_path(command_t *command, char* first_word) {
             command->path = first_word;
             command->argv = arg_add(command, command->argv, &command->argc, temp);
         }
+        //return false;
     }
 }
 
@@ -410,10 +415,11 @@ int parse_line(char* line) {
     strncpy(first_word, line, k);
     first_word[k] = '\0';
     if (DEBUG) { printf("the first token: %s\n", first_word);}
-
     find_path(holder, first_word);
-    //free(first_word);
-    if (DEBUG) {printf("the path: %s, k: %i\n", holder->path, k);}
+    /*if (!find_path(holder, first_word)) {
+        free(first_word);
+    }
+    if (DEBUG) {printf("the path: %s, k: %i\n", holder->path, k);}*/
 
     //hold whether or not we've found <,>, |
     bool found_input_redir = false;
@@ -488,14 +494,22 @@ int parse_line(char* line) {
             if (found_input_redir) {
                 // Set the input file, then set to false to continue parsing
                 // Set output to stdout
-                fd_i = open(read_word, O_RDWR);
+                fd_i = open(read_word, O_RDONLY);
+                if (fd_i == -1) {
+                    perror("Error setting input file \n");
+                    return EXIT_FAILURE;
+                }
                 holder->input_file = fd_i;
 
                 found_input_redir = false;
             } else if (found_output_redir) {
                 // Set the output file, then set to false to continue parsing
                 // Set input to stdin
-                fd_o = open(read_word, O_RDWR);
+                fd_o = open(read_word, O_WRONLY | O_CREAT | O_TRUNC, 0640);
+                if (fd_o == -1) {
+                    perror("Error setting output file \n");
+                    return EXIT_FAILURE;
+                }
                 holder->output_file = fd_o;
 
                 found_output_redir = false;
