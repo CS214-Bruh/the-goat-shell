@@ -1,2 +1,3 @@
-cd script-files
+then what
+else what
 exit
