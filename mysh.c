@@ -286,7 +286,6 @@ int run_command(command_t *comm) {
                 perror("Unable to change directory.");
                 return EXIT_FAILURE;
             }
-            free_struct(comm);
             return EXIT_SUCCESS;
         }
     } else if (strcmp(comm->path, "pwd") == 0) {
@@ -300,7 +299,6 @@ int run_command(command_t *comm) {
             write(comm->output_file, directory, strlen(directory));
             write(comm->output_file, "\n", 1);
             free(directory);
-            free_struct(comm);
             return EXIT_SUCCESS;
         }
     } else if (strcmp(comm->path, "which") == 0) {
@@ -313,7 +311,6 @@ int run_command(command_t *comm) {
                 perror("Issue with searching...");
             } else {
                 write(comm->output_file, path, strlen(path));
-                free_struct(comm);
                 return EXIT_SUCCESS;
             }
         }
@@ -352,7 +349,7 @@ int run_command(command_t *comm) {
             } else {
                 if(DEBUG) printf("Execute succeeded.\n");
 
-                free_struct(comm);
+//                free_struct(comm);
                 exit(1);
             }
 
@@ -553,7 +550,7 @@ int parse_line(char* line) {
     } else {
         if(run_command(holder) == EXIT_FAILURE) {
             perror("Error running first command...");
-//            free_struct(holder);
+            free_struct(holder);
             return EXIT_FAILURE;
         } else {
 //            free_struct(holder);
