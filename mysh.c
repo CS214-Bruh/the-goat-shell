@@ -219,7 +219,7 @@ bool slash_check(char* token) {
 char **arg_add(command_t *command, char **argv, int *argc, char *arg)
 {
     (*argc)++;
-    char** temp = realloc(argv, (*argc) * sizeof(char *));
+    char** temp = realloc(argv, (*argc) * sizeof(char *)+8);
     if (!temp ){
         perror("Failed to allocate memory\n");
         exit(EXIT_FAILURE);
@@ -229,7 +229,8 @@ char **arg_add(command_t *command, char **argv, int *argc, char *arg)
 
     // Add the new element
     argv[(*argc) - 1] = arg;
-    printf("what was added: %s\n", argv[(*argc) - 1]);
+    argv[(*argc)] = NULL;
+    printf("what was added: %s and %s\n", argv[(*argc) - 1], argv[*argc]);
 
     return argv;
 }
@@ -277,7 +278,7 @@ void find_path(command_t *command, char* first_word) {
  * @param command_t* command - A filled out struct with the command, args, and any pipes
  *
  */
-int run_command(command_t *comm, command_t *comm_2) {
+int run_command(command_t *comm) {
     // Handle pwd, cd, which
     if(comm->path[0] == '\0') return EXIT_SUCCESS;
     if(strcmp(comm->path, "cd") == 0) {
@@ -316,79 +317,51 @@ int run_command(command_t *comm, command_t *comm_2) {
         }
     } else {
         // This is for everything else...
-        pid_t pid, pid_2;
+        pid_t pid;
         pid = fork();
-        int fd[2];
-        pipe(fd);
         if(pid == -1) {
             perror("Error when forking process.\n");
             return EXIT_FAILURE;
         } else if (pid == 0) {
             // In the new child process.
             printf("Got to child process. %u\n", comm->input_file);
-            if(dup2(comm->input_file, STDIN_FILENO) == -1) {
-                perror("Issue with dup input file");
-                return EXIT_FAILURE;
-            }
-            printf("Got to child process. %u\n", comm->output_file);
-//            close(comm->input_file);
-
-            if(dup2(comm->output_file, STDOUT_FILENO) == -1) {
-                perror("Issue with dup input file");
-                return EXIT_FAILURE;
-            }
-
-            if(comm_2 != NULL) {
-                close(comm->output_file);
-                if(dup2(fd[1], STDOUT_FILENO) == -1) {
-                    perror("Issue with dup output file");
+            if(comm->input_file != STDIN_FILENO) {
+                printf("Not equal to STDIN\n");
+                if (dup2(comm->input_file, STDIN_FILENO) == -1) {
+                    perror("Issue with dup input file");
                     return EXIT_FAILURE;
                 }
+                close(comm->input_file);
             }
 
-            execv(comm->path, comm->argv);
-            printf("Execute success. %s\n", comm->argv[0]);
+            if(comm->output_file != STDOUT_FILENO) {
+                printf("Not equal to STDOUT\n");
 
-            exit(0);
+                if (dup2(comm->output_file, STDOUT_FILENO) == -1) {
+                    perror("Issue with dup input file");
+                    return EXIT_FAILURE;
+                }
+                close(comm->output_file);
+            }
+            printf("Execute success. %s\n", comm->argv[comm->argc]);
+            if(execv(comm->argv[0], comm->argv) == -1) {
+                perror("Execute failed.");
+                exit(0);
+            } else {
+                printf("Execute succeeded.\n");
+
+//                free_struct(comm);
+                exit(1);
+            }
+
 
         } else {
             // parent process
-           if(comm_2 != NULL) {
-               pid_2 = fork();
-               if(pid_2 == -1) {
-                   perror("Error when forking process.\n");
-                   return EXIT_FAILURE;
-               } else if (pid_2 == 0) {
-                   // 2nd child, run second child stuff
-                   if(dup2(fd[0], STDIN_FILENO) == -1) {
-                       perror("Issue with dup input file");
-                       return EXIT_FAILURE;
-                   }
-                   if(comm_2->output_file != STDOUT_FILENO) {
-                       if(dup2(comm_2->output_file, STDOUT_FILENO) == -1) {
-                           perror("Issue with dup out file");
-                           return EXIT_FAILURE;
-                       }
-                       execv(comm_2->path, comm_2->argv);
-
-                   }
-               } else {
-                   int st, st_2;
-                   waitpid(pid, &st, 0);
-                   waitpid(pid_2, &st_2, 0);
-//                   if (waitpid(pid, &st, 0) == -1) {
-//                       perror("Error with child process");
-//                       return EXIT_FAILURE;
-//                   }
-               }
-           } else {
-               int st;
-                  if (waitpid(pid, &st, 0) == -1) {
-                       perror("Error with child process");
-                       return EXIT_FAILURE;
-                   }
+            int st;
+            if (waitpid(pid, &st, 0) == -1) {
+                perror("Failed to wait for child process");
+                return EXIT_FAILURE;
            }
-
         }
         printf("Got to the else part\n");
 
@@ -570,14 +543,14 @@ int parse_line(char* line) {
     }
 
     // Check to see if output & input were set, if not, make standard
-    if (!holder->output_file) {
-        if (DEBUG) {printf("no output set\n");}
-        holder->output_file = STDOUT_FILENO;
-    }
-    if (!holder->input_file) {
-        if (DEBUG) {printf("no input set\n");}
-        holder->input_file = STDIN_FILENO;
-    }
+//    if (!holder->output_file) {
+//        if (DEBUG) {printf("no output set\n");}
+//        holder->output_file = STDOUT_FILENO;
+//    }
+//    if (!holder->input_file) {
+//        if (DEBUG) {printf("no input set\n");}
+//        holder->input_file = STDIN_FILENO;
+//    }
     
 
 //    if(DEBUG) {
@@ -593,11 +566,18 @@ int parse_line(char* line) {
 
     // Once we're here, we have created the two structs that we need. Now, we just run the first one if there is piping.
     if(pipe_output) {
-        if(run_command(holder, piped_comm) == EXIT_FAILURE) {
+        if(run_command(holder) == EXIT_FAILURE) {
             perror("Error running first command...\n");
             return EXIT_FAILURE;
         } else {    // Command succeeded, now actually read the all the inputs again!
-            printf("Was able to get here.\n");
+            close(pipes[1]);
+            if(run_command(piped_comm) == EXIT_FAILURE) {
+                perror("Error running first command...\n");
+                return EXIT_FAILURE;
+            } else {
+                return EXIT_SUCCESS;
+            }
+
 //            close(pipes[1]);
 //            int rd, len, buff_size = BUFFER_SIZE;
 //            char *buff = calloc(buff_size, sizeof(char));
@@ -631,9 +611,9 @@ int parse_line(char* line) {
 //            }
         }
     } else {
-        if(run_command(holder, NULL) == EXIT_FAILURE) {
+        if(run_command(holder) == EXIT_FAILURE) {
             perror("Error running first command...");
-//            free_struct(holder);
+            free_struct(holder);
             return EXIT_FAILURE;
         } else {
 //            free_struct(holder);
