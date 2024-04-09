@@ -124,7 +124,8 @@ int read_input(char** buf_ptr, int fd) {
         strcat(search_concat, program);
          if (access(search_concat, F_OK) == 0) {
              //found
-             if (DEBUG) {printf("Found at path: %s\n", search_concat);}
+
+             if(DEBUG) printf("Found at path: %s\n", search_concat);
              return search_concat;
          }
          free(search_concat);
@@ -174,11 +175,11 @@ char** handle_wildcards(command_t* command, char * pathname, char** argv, int* a
         
     }
     
-    if (DEBUG) {printf("current argc before found: %i\n", *argc);}
+    if(DEBUG) printf("current argc before found: %i\n", *argc);
     //increment argc
     int k = *argc;
     *argc += gstruct.gl_pathc;
-    if (DEBUG) {printf("argc after found: %i\n", *argc);}
+    if(DEBUG) printf("argc after found: %i\n", *argc);
     char** temp = realloc(argv, (*argc) * sizeof(char *));
     if (!temp) {
         perror("Failed to allocate memory\n");
@@ -216,8 +217,7 @@ bool slash_check(char* token) {
 /**
  * function to add arguments to the argv array
 */
-char **arg_add(command_t *command, char **argv, int *argc, char *arg)
-{
+char **arg_add(command_t *command, char **argv, int *argc, char *arg) {
     (*argc)++;
     char** temp = realloc(argv, (*argc) * sizeof(char *)+8);
     if (!temp ){
@@ -230,7 +230,7 @@ char **arg_add(command_t *command, char **argv, int *argc, char *arg)
     // Add the new element
     argv[(*argc) - 1] = arg;
     argv[(*argc)] = NULL;
-    if (DEBUG) {printf("what was added: %s and %s\n", argv[(*argc) - 1], argv[*argc]);}
+    if(DEBUG) printf("what was added: %s and %s\n", argv[(*argc) - 1], argv[*argc]);
 
     return argv;
 }
@@ -289,7 +289,11 @@ int run_command(command_t *comm) {
             perror("cd expects only one command.\n");
             return EXIT_FAILURE;
         } else {
-            chdir(comm->argv[1]);
+            if(chdir(comm->argv[1]) == -1) {
+                perror("Unable to change directory.");
+                return EXIT_FAILURE;
+            }
+            return EXIT_SUCCESS;
         }
     } else if (strcmp(comm->path, "pwd") == 0) {
         // Return present working directory
@@ -314,6 +318,7 @@ int run_command(command_t *comm) {
                 perror("Issue with searching...");
             } else {
                 write(comm->output_file, path, strlen(path));
+                return EXIT_SUCCESS;
             }
         }
     } else {
@@ -332,6 +337,7 @@ int run_command(command_t *comm) {
             if (DEBUG) {printf("Got to child process. %u\n", comm->input_file);}
             if(comm->input_file != STDIN_FILENO) {
                 if (DEBUG) {printf("Not equal to STDIN\n");}
+
                 if (dup2(comm->input_file, STDIN_FILENO) == -1) {
                     perror("Issue with dup input file");
                     return EXIT_FAILURE;
@@ -340,7 +346,8 @@ int run_command(command_t *comm) {
             }
 
             if(comm->output_file != STDOUT_FILENO) {
-                if (DEBUG) {printf("Not equal to STDOUT\n");}
+
+                if(DEBUG) printf("Not equal to STDOUT\n");
 
                 if (dup2(comm->output_file, STDOUT_FILENO) == -1) {
                     perror("Issue with dup input file");
@@ -348,12 +355,14 @@ int run_command(command_t *comm) {
                 }
                 close(comm->output_file);
             }
-            //printf("Execute success. %s\n", comm->argv[comm->argc]);
+
+            if(DEBUG) printf("Execute success. %s\n", comm->argv[comm->argc]);
             if(execv(comm->argv[0], comm->argv) == -1) {
                 perror("Execute failed.");
                 exit(0);
             } else {
-                if (DEBUG) {printf("Execute succeeded.\n");}
+
+                if(DEBUG) printf("Execute succeeded.\n");
 
 //                free_struct(comm);
                 exit(1);
@@ -368,7 +377,8 @@ int run_command(command_t *comm) {
                 return EXIT_FAILURE;
            }
         }
-        if (DEBUG) {printf("Got to the else part\n");}
+
+        if(DEBUG) printf("Got to the else part\n");
 
         return EXIT_SUCCESS;
     }
@@ -391,11 +401,11 @@ int run_command(command_t *comm) {
 */
 
 int parse_line(char* line) {
-
     int pipes[2];
     pipe(pipes);
 
-    if (DEBUG) {printf("%s\n", line);}
+
+    if(DEBUG) printf("%s\n", line);
     //initialize struct
     command_t *holder = malloc(sizeof(command_t));
     command_t *piped_comm;
@@ -403,11 +413,6 @@ int parse_line(char* line) {
     holder->argc = 0;
     holder->input_file = STDIN_FILENO;
     holder->output_file = STDOUT_FILENO;
-
-    //array to hold the argv_found
-    //update the size later on
-    //char* argv_found[50];
-    //int row = 0;
 
     //search for the first word to determine what to do
     char* first_word = malloc(sizeof(char) * 1024);
@@ -437,11 +442,9 @@ int parse_line(char* line) {
     bool piped_output_first_word = false;
 
     //vars to hold whether in word or not and if there's wildcard
-    bool in_word = false, wild_found = false;
-
+    bool wild_found = false;
     //hold the file descriptors
     int fd_o, fd_i;
-
 
     //increment index past space
     k++;
@@ -469,7 +472,7 @@ int parse_line(char* line) {
         if(strcmp(read_word, "|") == 0 || strcmp(read_word, "<") == 0 || strcmp(read_word, ">") == 0) {
             if(strcmp(read_word, "|") == 0) {
                 found_pipe = true;
-                if (DEBUG) {printf("found pipe\n");}
+                if(DEBUG) printf("found pipe\n");
             } else if (strcmp(read_word, "<") == 0) {
                 found_input_redir = true;
                 if(DEBUG) printf("Found input redirection symbol\n");
@@ -488,6 +491,7 @@ int parse_line(char* line) {
                     free(read_word);
                 }
                 if (DEBUG) {printf("found path: %s\n", piped_comm->path);}
+
                 piped_output_first_word = true;
             } else {
                 // All thats left are arguments to the pipe, just add em to args
@@ -545,21 +549,8 @@ int parse_line(char* line) {
             piped_comm->input_file = pipes[0];
             piped_comm->output_file = STDOUT_FILENO;
         }
-//        printf("%c\n", line[k]);
-//        printf("%c\n", line[k]);
         k++;
-//        printf("%c\n", line[k]);
     }
-
-    // Check to see if output & input were set, if not, make standard
-    /*if (!holder->output_file) {
-        if (DEBUG) {printf("no output set\n");}
-        holder->output_file = STDOUT_FILENO;
-    }
-    if (!holder->input_file) {
-        if (DEBUG) {printf("no input set\n");}
-        holder->input_file = STDIN_FILENO;
-    }*/
     
 
 //    if(DEBUG) {
@@ -576,7 +567,7 @@ int parse_line(char* line) {
     // Once we're here, we have created the two structs that we need. Now, we just run the first one if there is piping.
     if(pipe_output) {
         if(run_command(holder) == EXIT_FAILURE) {
-            perror("Error running first command...\n");
+//            perror("Error running first command...\n");
             return EXIT_FAILURE;
         } else {    // Command succeeded, now actually read the all the inputs again!
             close(pipes[1]);
@@ -586,38 +577,6 @@ int parse_line(char* line) {
             } else {
                 return EXIT_SUCCESS;
             }
-
-//            close(pipes[1]);
-//            int rd, len, buff_size = BUFFER_SIZE;
-//            char *buff = calloc(buff_size, sizeof(char));
-//            char c;
-//            while((rd = read(pipes[0], &c, sizeof(char))) > 0) {
-//                if(rd < 0) {
-//                    perror("Error wtih reading pipe");
-//                    return EXIT_FAILURE;
-//                } else {
-//                    if(len >= buff_size) {
-//                        buff = realloc(buff, buff_size*2);
-//                        buff_size *=2;
-//                    }
-//                    buff[len] = c;
-//                    len++;
-//                }
-//            }
-//            close(pipes[0]);
-
-//            buff = realloc(buff, len+1);
-//            piped_comm->argv = arg_add(piped_comm, piped_comm->argv, &piped_comm->argc, buff);
-            for(int i =0; i < piped_comm->argc; i++) {
-                if (DEBUG) {printf("Argument #%d: %s ", i, piped_comm->argv[i]);}
-            }
-            if (DEBUG) {printf("\n");}
-            return EXIT_SUCCESS;
-//            if(run_command(piped_comm) == EXIT_FAILURE) {
-//                perror("Error running piped command...");
-//            } else {
-//                return EXIT_SUCCESS;
-//            }
         }
     } else {
         if(run_command(holder) == EXIT_FAILURE) {
@@ -629,7 +588,6 @@ int parse_line(char* line) {
             return EXIT_SUCCESS;
         }
     }
-    free_struct(holder);
 }
 
 /**
@@ -647,7 +605,8 @@ int main(int argc, char** argv) {
 //    command_t new_comm = malloc(sizeof(command_t));
 
     // Check whether or not to use batch mode
-    if (DEBUG) {printf("Number of args: %d\n", argc);}
+
+    if(DEBUG) printf("Number of args: %d\n", argc);
     bool use_batch = false;
 
     // If the arguments are greater than 1, check if any of it is terminal
@@ -663,9 +622,6 @@ int main(int argc, char** argv) {
     // If no specified input file
     if(!isatty(STDIN_FILENO)) {
         use_batch = true;
-//        int fd = fopen();
-//        dup2(fd, STDIN_FILENO);
-//        close(fd);
     }
 
     // Interactive mode
@@ -678,7 +634,6 @@ int main(int argc, char** argv) {
 
     bool keep_running = true;
     // I dont know how big this buffer size should be.
-    char c;
     int rd, prev_exit_status;
     while(keep_running) {
         char* buf = calloc(BUFFER_SIZE, sizeof(char));
@@ -698,6 +653,7 @@ int main(int argc, char** argv) {
         comm[len] = '\0';
 //        write(STDOUT_FILENO, comm, len);
         if(strcmp(comm, "exit") == 0) {
+            free(buf);
             write(STDOUT_FILENO, "Exit signal received... Goodbye!\n", 33);
             keep_running = false;
         } else if(strcmp(comm, "then") == 0) {
@@ -709,7 +665,11 @@ int main(int argc, char** argv) {
                 // Run code for exit success
                 // Need to get everything past the "then" statement
                 // That will be passed to the argument parser
-                prev_exit_status = parse_line(buf);
+                char* truncate_statement = malloc(BUFFER_SIZE);
+                strcpy(truncate_statement, buf+5);
+//                printf("%s", truncate_statement);
+                prev_exit_status = parse_line(truncate_statement);
+                free(truncate_statement);
             }
         } else if(strcmp(comm, "else") == 0) {
             // received an else statement
@@ -717,26 +677,15 @@ int main(int argc, char** argv) {
             if(DEBUG) printf("%s \n", buf+len+1);
             if(prev_exit_status == EXIT_FAILURE) {
                 // Run code for exit failure
-                prev_exit_status = parse_line(buf);
+                char* truncate_statement = malloc(BUFFER_SIZE);
+                strcpy(truncate_statement, buf+5);
+                prev_exit_status = parse_line(truncate_statement);
+                free(truncate_statement);
             }
         } else {
-            write(STDOUT_FILENO, buf, strlen(buf));
+//            write(STDOUT_FILENO, buf, strlen(buf));
             prev_exit_status = parse_line(buf);
-//            char* directory = malloc(PATH_LEN);
-//            getcwd(directory, PATH_LEN);
-//            if(DEBUG) printf("Old Path is: %s \n", directory);
-//            run_command(use);
-//            getcwd(directory, PATH_LEN);
-//            if(DEBUG) printf("%s %s \n", use->path, use->argv[1]);
-//            if(DEBUG) printf("New Path is: %s\n", directory);
-            
-//            free(directory);
-//            free_struct(use);
         }
-        free(buf);
+        if(keep_running) free(buf);
     }
-
-
-
-    // @todo parse through all the args in a command line and add them to the struct.
 }
