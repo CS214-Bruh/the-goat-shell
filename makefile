@@ -9,4 +9,4 @@ mysh.o: mysh.c
 	$(CC) $(CFLAGS) $(DEBUG) -c -Wall mysh.c
 
 clean:
-	rm *.o ./mysh
+	rm *.o mysh
