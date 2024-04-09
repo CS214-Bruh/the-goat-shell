@@ -2,14 +2,14 @@
 cat ./test-dir/test.c
 
 #cd example
-cd test-dir
+cd ./test-dir
 
 #piping example
-give.c | out.c
+echo hello | grep hello
 
 #redirection examples
-cat < ./test-dir/test.c > receive.txt
-./test-dir/receive.txt < ./test-dir/out.c
+cat < ./test-dir/test.c > ./receive.txt
+./receive.txt < ./a.out
 
 #tricky piping precedence example
 give.c | receive.txt > out.c

@@ -58,7 +58,7 @@ void free_struct(command_t* command) {
     }
 
     //free each argument
-    for (i; i < command->argc; i++) {
+    for (i; i <= command->argc; i++) {
         printf("argv at %i: %s\n", i, command->argv[i]);
         free(command->argv[i]);
     }
@@ -154,7 +154,7 @@ char** handle_wildcards(command_t* command, char * pathname, char** argv, int* a
     r = glob(pathname, GLOB_ERR , NULL, &gstruct);
     //error checking
     if( r!=0 ){
-        if( r==GLOB_NOMATCH ) {
+        if( r == GLOB_NOMATCH ) {
             //just return the pathname
 //            *argc++;
             char** temp = realloc(argv, ++(*argc) * sizeof(char *));
@@ -176,7 +176,7 @@ char** handle_wildcards(command_t* command, char * pathname, char** argv, int* a
     
     printf("current argc before found: %i\n", *argc);
     //increment argc
-    int k = *argc - 1;
+    int k = *argc;
     *argc += gstruct.gl_pathc;
     printf("argc after found: %i\n", *argc);
     char** temp = realloc(argv, (*argc) * sizeof(char *));
@@ -239,12 +239,14 @@ char **arg_add(command_t *command, char **argv, int *argc, char *arg)
  * helper function to find the path of the first token
  * 
 */
-void find_path(command_t *command, char* first_word) {
+bool find_path(command_t *command, char* first_word) {
     if (slash_check(first_word)) {
         //the first token can be considered as a path
+        printf("THIS IS A PATH\n");
        
         command->path = first_word;
-        //return true;
+        command->argv = arg_add(command, command->argv, &command->argc, first_word);
+        return true;
     } else if (strcmp(first_word,"cd") == 0 || strcmp(first_word, "pwd") == 0 || strcmp(first_word,"which") == 0 ) {
         //it's a built-in command
         //STDIN_FILENO for input and STDOUT_FILENO
@@ -253,22 +255,22 @@ void find_path(command_t *command, char* first_word) {
         command->argv = arg_add(command, command->argv, &command->argc, first_word);
         command->input_file = STDIN_FILENO;
         command->output_file = STDOUT_FILENO;
-        //return true;
+        return true;
     } else {
         //it's a bare name of a program or shell command
         char* temp = search(first_word);
         
         if (DEBUG) {printf("what's in temp: %s, what's in first word: %s\n", temp, first_word);}
-        if (strcmp(temp, "fail") ==0) {
+        if (strcmp(temp, "fail") == 0) {
             //add to front of argument list & path
             command->path = first_word;
             command->argv = arg_add(command, command->argv, &command->argc, first_word);
+            return true;
         } else {
-            first_word = temp;
-            command->path = first_word;
+            command->path = temp;
             command->argv = arg_add(command, command->argv, &command->argc, temp);
+            return false;
         }
-        //return false;
     }
 }
 
@@ -324,6 +326,10 @@ int run_command(command_t *comm) {
             return EXIT_FAILURE;
         } else if (pid == 0) {
             // In the new child process.
+            printf("The path is: %s\n", comm->path);
+            for (int i = 0; i < comm->argc; i++) {
+                printf("argument %i: %s\n", i, comm->argv[i]);
+            }
             printf("Got to child process. %u\n", comm->input_file);
             if(comm->input_file != STDIN_FILENO) {
                 printf("Not equal to STDIN\n");
@@ -343,7 +349,7 @@ int run_command(command_t *comm) {
                 }
                 close(comm->output_file);
             }
-            printf("Execute success. %s\n", comm->argv[comm->argc]);
+            //printf("Execute success. %s\n", comm->argv[comm->argc]);
             if(execv(comm->argv[0], comm->argv) == -1) {
                 perror("Execute failed.");
                 exit(0);
@@ -416,10 +422,10 @@ int parse_line(char* line) {
     first_word[k] = '\0';
     if (DEBUG) { printf("the first token: %s\n", first_word);}
     find_path(holder, first_word);
-    /*if (!find_path(holder, first_word)) {
+    if (!find_path(holder, first_word)) {
         free(first_word);
     }
-    if (DEBUG) {printf("the path: %s, k: %i\n", holder->path, k);}*/
+    if (DEBUG) {printf("the path: %s, k: %i\n", holder->path, k);}
 
     //hold whether or not we've found <,>, |
     bool found_input_redir = false;
@@ -449,7 +455,7 @@ int parse_line(char* line) {
             if(DEBUG) printf("read letter: %c, new length %d\n", line[k], word_size);
             if (line[k] == '*') {
                 wild_found = true;
-            }
+            } 
             read_word[word_size] = line[k];
             word_size++;
             k++;        // Add one to the char line
@@ -479,7 +485,9 @@ int parse_line(char* line) {
             // Code for if after here, we are doing piped output
             if(!piped_output_first_word) {
                 // First word has not been entered into 2nd struct
-                find_path(piped_comm, read_word);
+                if (!find_path(piped_comm, read_word)) {
+                    free(read_word);
+                }
                 printf("found path: %s\n", piped_comm->path);
                 piped_output_first_word = true;
             } else {
@@ -502,10 +510,12 @@ int parse_line(char* line) {
                 holder->input_file = fd_i;
 
                 found_input_redir = false;
+                free(read_word);
             } else if (found_output_redir) {
                 // Set the output file, then set to false to continue parsing
                 // Set input to stdin
-                fd_o = open(read_word, O_WRONLY | O_CREAT | O_TRUNC, 0640);
+                fd_o = open(read_word, O_RDWR| O_CREAT | O_TRUNC, 0640);
+                printf("this is the file descriptor: %i\n", fd_o);
                 if (fd_o == -1) {
                     perror("Error setting output file \n");
                     return EXIT_FAILURE;
@@ -513,10 +523,10 @@ int parse_line(char* line) {
                 holder->output_file = fd_o;
 
                 found_output_redir = false;
+                free(read_word);
             } else {
                 // Check for wildcard, then add to argument list
                 if (wild_found) {
-                    if (DEBUG) {printf("looking for wildcard\n");}
                     holder->argv = handle_wildcards(holder, read_word, holder->argv, &holder->argc);
                 } else {
                     holder->argv = arg_add(holder, holder->argv, &holder->argc, read_word);
@@ -543,14 +553,14 @@ int parse_line(char* line) {
     }
 
     // Check to see if output & input were set, if not, make standard
-//    if (!holder->output_file) {
-//        if (DEBUG) {printf("no output set\n");}
-//        holder->output_file = STDOUT_FILENO;
-//    }
-//    if (!holder->input_file) {
-//        if (DEBUG) {printf("no input set\n");}
-//        holder->input_file = STDIN_FILENO;
-//    }
+    /*if (!holder->output_file) {
+        if (DEBUG) {printf("no output set\n");}
+        holder->output_file = STDOUT_FILENO;
+    }
+    if (!holder->input_file) {
+        if (DEBUG) {printf("no input set\n");}
+        holder->input_file = STDIN_FILENO;
+    }*/
     
 
 //    if(DEBUG) {
