@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -fsanitize=address -std=c99
+CFLAGS = -Wall -std=c99
 #DEBUG = -DDEBUG
 
 mysh: mysh.o

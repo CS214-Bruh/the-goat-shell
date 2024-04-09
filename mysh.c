@@ -115,7 +115,7 @@ int read_input(char** buf_ptr, int fd) {
      // Taking in a program name, search through all the required locations for the program.
      // Return where mysh would use as a path.
      //we will only search the directories /usr/local/bin, /usr/bin, and /bin
-     static char* search_params[] = {"/usr/local/bin/", "/usr/bin/", "/bin/"};
+     char* search_params[] = {"/usr/local/bin/", "/usr/bin/", "/bin/"};
      if (DEBUG) printf("long: %s, mid: %s, small: %s\n", search_params[0], search_params[1], search_params[2]);
 
      for(int i = 0; i < 3; i++) {
@@ -284,7 +284,7 @@ int run_command(command_t *comm) {
     if(comm->path[0] == '\0') return EXIT_SUCCESS;
     if(strcmp(comm->path, "cd") == 0) {
         // Change directory command found
-        if (comm->argc > 2) {
+        if (comm->argc > 3) {
             // There are more than 1 arguments in cd
             perror("cd expects only one command.\n");
             return EXIT_FAILURE;
@@ -309,7 +309,7 @@ int run_command(command_t *comm) {
             return EXIT_SUCCESS;
         }
     } else if (strcmp(comm->path, "which") == 0) {
-        if(comm->argc > 1) {
+        if(comm->argc > 2) {
             perror("which given wrong number of arguments.\n");
             return EXIT_FAILURE;
         } else {
@@ -317,7 +317,7 @@ int run_command(command_t *comm) {
             if(path[0] == '\0') {
                 perror("Issue with searching...");
             } else {
-                write(comm->output_file, path, strlen(path));
+                // write(comm->output_file, path, strlen(path));
                 return EXIT_SUCCESS;
             }
         }
@@ -572,7 +572,6 @@ int parse_line(char* line) {
         } else {    // Command succeeded, now actually read the all the inputs again!
             close(pipes[1]);
             if(run_command(piped_comm) == EXIT_FAILURE) {
-                perror("Error running first command...\n");
                 return EXIT_FAILURE;
             } else {
                 return EXIT_SUCCESS;
@@ -580,8 +579,8 @@ int parse_line(char* line) {
         }
     } else {
         if(run_command(holder) == EXIT_FAILURE) {
-            perror("Error running first command...");
-            free_struct(holder);
+            perror("Error");
+//            free_struct(holder);
             return EXIT_FAILURE;
         } else {
 //            free_struct(holder);
