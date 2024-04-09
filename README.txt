@@ -7,16 +7,22 @@ Compilation & Execution:
 
 Design Notes:
 - we have a command struct that stores in information about each command
+    - path: stores path to Unix command, bare names, built-in commands, pathnames
+    - argv: stores the argument list
+    - argc: stores the number of arguments in argv
+    - input_file: stores the file descriptor for input
+    - output_file: stores the file descriptor for output 
 - our code is split into many functions which we will shortly describe here
-    - free_struct
+    - free_struct: iterates through and frees all memory associated with command struct
     - read_input
-    - search
-    - handle_wildcards
-    - slash_check
-    - arg_add
-    - find_path
+    - search: searches for program name in 3 locations & returns appropriate path
+    - handle_wildcards: utilizes glob to find all instances of wild_cards
+    - slash_check: checks for slashes, if found, treated as path
+    - arg_add: adds argument to argv list of command struct
+    - find_path: checks for built-in, with slash, or utilizes search to determine path for first token
     - run_command
-    - parse_line
+    - parse_line: iterates through command string, tokenizes, and assigns variables to account for 
+        running different command modes
 - structure of main: 
 
 Testing:
